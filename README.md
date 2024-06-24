@@ -84,6 +84,18 @@ The length of summaries and trancript chunks was initially driven by the approx 
 
 Interview and top-level session summaries are linked, at the sentence level, to lower-level summaries or transcript chunks.  Should they always link to transcript chunks?  I'm not sure.  Should all hierarchical summaries ALSO have downlinks?  I'm not sure - easy to do!
 
+## Chat
+
+There's a general chat interface at /chat
+There's an experimental "chat with the transcript" when viewing the transcript.  Sometimes is is fantastic, sometimes disappointing so much more work is needed on prompt and selection/prep of RAG content.  It should also hyperlink from chat response into the transcript.  Perhaps chat should be "everywhere", eg selectable at a session level, or on a time range (although the hierarchical summaries attempt to summarise time ranges).
+
+## Playing audio
+
+I put a bit of thought into this, so audio control gets fixed at bottom right of page when playing and by default syncs transcript with audio and highlights transcript being rendered.  Maybe we should highlight word by word too (we have the information with timestamps!).
+
+## Deep linking from search result to summary/transcript
+
+Is this useful?  Or confusing?  Could a UI designer make this work better?
 
 ## SOLR schemas
 
