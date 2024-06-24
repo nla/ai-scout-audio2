@@ -84,6 +84,9 @@ The length of summaries and trancript chunks was initially driven by the approx 
 
 Interview and top-level session summaries are linked, at the sentence level, to lower-level summaries or transcript chunks.  Should they always link to transcript chunks?  I'm not sure.  Should all hierarchical summaries ALSO have downlinks?  I'm not sure - easy to do!
 
+More effort must be made to make "known item" searches on a interviewee name (including partial name) work, maybe objid.  Maybe change also change SOLR search to edismax (as has been done in
+latest newspaper demo)?
+
 ## Chat
 
 There's a general chat interface at /chat
