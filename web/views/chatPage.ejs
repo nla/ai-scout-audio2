@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+
+    <head>
+        <meta charset="UTF-8">
+        <meta http-equiv="Content-Security-Policy" 
+        content="script-src-attr 'self' ; script-src 'self' https://fonts.googleapis.com https://apis.google.com; style-src 'self' https://fonts.googleapis.com/ 'unsafe-inline'" >
+
+        <link rel="icon" type="image/png" sizes="32x32" href="/static/images/favicon-32x32.png">
+        <link rel="icon" type="image/png" sizes="16x16" href="/static/images/favicon-16x16.png">
+        <link rel="icon" type="image/png" href="/static/images/favicon.ico">
+       
+        <script src="/static/javascript/chat.js"></script>
+
+        <link href="https://fonts.googleapis.com/css2?family=Roboto&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed&display=swap" rel="stylesheet">      
+
+        <title>NLA Audio Transcript Semantic Search Demo - Adhoc standalone chat</title>
+    </head>
+    <body>
+
+
+<div class='headerDiv'>
+   <h1 style="font-size:180%;margin-top:14px;margin-bottom:8px;margin-right:30px;">
+         <a href="/chat" style='color:black;text-decoration: none'>Adhoc standalone chat</a> 
+         <span style="font-size:50%">(refresh page to start a new chat)</span>
+        </h1>
+</div>
+<div>
+<TABLE id="chatHistory">
+<tr valign='top'><td style="width:10em">Temperature</td>
+    <td style="width:40em"><input type="range" id="temperature" name="temperature" min="0" max="1" step="0.01" value="<%=temperature%>"/></td>
+    <td>Value: <span id='showTemperature'></span> <I style="font-size: 80%"> [0.0 - 1.0]</I></td></tr>
+<tr valign='top'><td>Max Tokens</td>
+    <td><input type="range" id="maxTokens" name="maxTokens" min="5" max="1000" value="<%=maxTokens%>"/></td>
+    <td>Value: <span id='showMaxTokens'></span> <I style="font-size: 80%"> [5 - 1000]</I></td></tr>
+<tr valign='top'><td>System Prompt</td><td><textarea id="systemPrompt" name="systemPrompt" rows="4" cols="80" style="width:50em"><%=systemPrompt%></textarea></td>
+    <td><I style="font-size: 80%">Can only be changed at start of chat</I>
+	    <BR/>Eg: <span  style="font-size: 80%">Assistant is an intelligent agent that checks text that will be passed to a search system to ensure it is not offensive.  The user supplies the text, the agent replies OFFENSIVE if possibly offensive, or replies OK if unlikely to offend.</span></td></tr>
+</TABLE>
+</div>
+
+<div style="margin-top:1em">
+    <table>
+        <tr><td style="width:10em">Your input&nbsp;&nbsp;</td>
+            <td><textarea id="q" rows="2" cols="80" style="width:50em;background-color:#ddddff"><%=q%></textarea></td>
+        </tr>
+    </table>    
+</div>
+<div>
+    <button id="chat">Chat</button>
+</div>
+
+
+</body>
+</HTML>

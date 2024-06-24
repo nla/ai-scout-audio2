@@ -1,0 +1,21 @@
+<%- include('../common/header') ; -%>
+
+
+<div id="uploadForm">
+  
+  <H2>Uploaded a policy document</H2>
+
+  <div class="status"><%= errMsg %></div>
+  <div class="success"><%= successMsg %></div>
+
+  <table style="margin-top:1em">
+    <tr valign="top"><td>Title</td><td><%= title %></td></tr>
+    <tr valign="top"><td>Collection</td><td><%= collection %></td></tr>
+    <tr valign="top"><td>File name</td><td><%= file.originalFilename %></td></tr>
+    <tr valign="top"><td>File size</td><td><%= file.size %></td></tr>
+  </table>
+   
+  <div style="margin-top:2em"><a href="/doc/outline?id=<%=encodeURIComponent(id)%>" class="outlineLink">Show generated outline</a></div>
+</div>
+
+<%- include('../common/footer') ; -%>

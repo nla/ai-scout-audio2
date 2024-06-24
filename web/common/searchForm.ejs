@@ -1,0 +1,25 @@
+ 
+  <table>
+    <tr valign='top'>
+      <td nowrap>
+        <input type='text' size='60' id='stxt' style='font-size:105%' value='<%=stxt%>' class='veryLightMauve'/>
+        <button id='searchButton' class='searchButton'><span id='searchText' class='searchText'>Search</span></button>
+      </td>
+      <td nowrap style='padding-left:1em;font-variant:small-caps'>
+        <table>
+          <tr valign="top">
+            <td>Keyword &lt;&lt;</td>
+            <td><input type='range' id='keywordScaling' min='0' max='1' step='0.025' value='<%=keywordScaling%>'   style="margin-top:0em"             
+              title='Move to the left to boost the ranking of keyword results, move to the right to boost semantic search results'> </td>
+            <td>&gt;&gt; Semantic</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    <tr valign='top'>
+      <td colspan="2" style="font-size:80%">
+        <span style='font-variant: small-caps'>Collection</span> <%- collectionSelect %>
+      </td>
+    </tr>
+  </table>
+ 

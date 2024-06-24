@@ -1,0 +1,30 @@
+<%- include('../common/header') ; -%>
+
+
+<div id="uploadForm">
+  
+  <H2>Update title and/or collection for audio file: <I><%=id%></I></H2>
+
+  <form action="/upload/update" method="post">
+    <input type="hidden" name="id" value="<%=id%>"/>
+    <table>
+      <tr valign="top">
+        <td>Title</td>
+        <td><input type="text" name="title" size="50" value="<%=title%>"/></td>
+                
+      </tr>
+      <tr valign="top">
+        <td>Collection</td>
+        <td><%- collectionSelect %>
+        </td>               
+      </tr> 
+      <tr valign="top">
+        <td> </td>
+        <td><input type="submit" value="Update" style="margin-top:1em"/></td>
+      </tr>          
+    </table>
+  </form>
+ 
+</div>
+
+<%- include('../common/footer') ; -%>

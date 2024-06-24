@@ -1,0 +1,760 @@
+const fs = require('fs') ;
+const log = require('log4js').getLogger('util') ;
+const axios = require('axios') ;
+const util = require('../util/utils') ;
+const solr = require('../util/solr') ;
+
+let appConfig = null ;
+let docCache = [] ;
+let cacheLen = 0 ;
+
+
+function convertToParas(txt) {
+
+  if (!txt) return txt ;
+  if (txt.length < 100) return txt ;
+
+  let firstNL = txt.indexOf("\n", 4) ;
+  let lastNL = txt.lastIndexOf("\n", txt.length - 4) ;
+
+  if ((firstNL > 1) && (lastNL > firstNL)) return convertToParasWithNewLines(txt) ;
+  else return convertToParasWithNoNewLines(txt) ;
+}
+
+function convertToParasWithNewLines(txt) {   
+
+  if (!txt) return txt ;
+  let addedPara = false ;
+  let start = 0 ;
+  let sentCount = 0 ;
+  let n = "" ;
+  while (start < txt.length) {
+    let i = txt.indexOf("\n", start) ;  
+    if (i < 0) {
+      n += txt.substring(start) ;
+      break ;
+    }
+    i = i + 1 ; // next start
+    n += txt.substring(start, i) ;
+    if (++sentCount >= 0) {
+      sentCount = 0 ;
+      if (addedPara) n += "</P>" ;
+      n += "<P>" ;
+      addedPara = true ;
+    }
+    start = i ;    
+  }
+  if (addedPara) n += "</P>" ;
+  return n ;
+}
+
+function convertToParasWithNoNewLines(txt) {  // after every third sentence, add a para
+
+  if (!txt) return txt ;
+  let addedPara = false ;
+  let start = 0 ;
+  let sentCount = 0 ;
+  let n = "" ;
+  while (start < txt.length) {
+    let i = txt.indexOf(". ", start) ; // ok acronym and name fail , Mr. E.G. Whitlam...
+    if (i < 0) {
+      n += txt.substring(start) ;
+      break ;
+    }
+    i = i + 2 ; // next start
+    n += txt.substring(start, i) ;
+    if (++sentCount >= 4) {
+      sentCount = 0 ;
+      if (addedPara) n += "</P>" ;
+      n += "<P>" ;
+      addedPara = true ;
+    }
+    start = i ;    
+  }
+  if (addedPara) n += "</P>" ;
+  return n ;
+}
+
+async function addToCache(doc) {
+
+  doc.summary = (doc.summary) ? convertToParas(doc.summary) : null ;
+  await createOutlines(doc) ;
+
+  if (cacheLen > 200) {
+    docCache = [] ;
+    cacheLen = 0 ;
+  }
+  docCache[doc.id] = doc ;
+  cacheLen++ ;
+}
+
+function clearCache() {  
+  docCache = [] ;
+  cacheLen = 0 ;
+}
+
+async function createOutlines(doc) {
+
+  doc.outlines = [] ;
+  
+  let selectData = 
+  "wt=json&rows=9999" +
+  "&q=id:\"" + encodeURIComponent(doc.id) + "\"" +
+  "&fl=level,seq,content,lowerLevelSourceStartSeq,lowerLevelSourceEndSeq,startcs,endcs" +
+  "&sort=level asc, seq asc" ;
+
+  let solrRes = null ;
+
+  //console.log("about to get " + appConfig.solr.getSolrBaseUrl() + "audioParts/select?" + selectData) ;
+  try {
+    solrRes = await axios.get(
+      appConfig.solr.getSolrBaseUrl() + "audioParts/select?" + selectData) ;
+  }
+  catch (e) {
+    console.log("Error solr createOutlines " + e) ;
+    if( e.response) console.log(e.response.data) ; 
+    throw e ;
+  }
+
+  //console.log("createOutlines status: " + solrRes.status) ;
+  if ((solrRes.status != 200) || !(solrRes.data && solrRes.data.response && solrRes.data.response.docs))
+    throw "SOLR list uploads unexpected response: " + solrRes.status + " or nothing found" ;
+
+  let parts = solrRes.data.response.docs ;
+  let lastLev = -1 ;
+  let currentLev = null ;
+  for (let part of parts) {
+    //console.log("doc lev " + part.level + " seq " + part.seq) ;
+
+    if (lastLev != part.level) {
+      lastLev = part.level ;
+      currentLev = {
+        level: part.level,
+        seqs: []
+      }
+      doc.outlines.push(currentLev) ;
+    }
+    if (part.level > 0) part.content = convertToParas(part.content) ;
+    else part.content = part.content.replaceAll("\n", "&nbsp;<BR/>") ;
+    currentLev.seqs.push(part) ;    
+  }
+}
+
+const MIN_CHUNK_SIZE = 50 ;
+const MAX_CHUNK_SIZE = 250 ;
+const OK_CHUNK_SIZE = 200 ;
+
+
+async function processTextIntoChunks(origChunks) {
+
+  // was text, now array of orig tei chunks with s (startcentisecs) and t (text) and duration d
+
+  // Basic plan is to create new chunks of between 200 and 250 words.  We try to have a chunk ending with a .
+
+  let chunks = [] ;
+
+  let startcs = -1 ;
+  let endcs = -1 ;
+  let wordCount = 0 ;
+  let words = "" ;
+
+  for (let oc of origChunks) {
+
+   // if (!oc.t) {
+    //  console.log(" empty t chunk " + JSON.stringify(oc)) ;
+    //}
+    if (words.length > 0) {
+      words += " " + oc.t ;
+    }
+    else {
+      startcs = oc.s ;
+      words = "" + oc.t ; // might be a number..
+    }
+    wordCount++
+    endcs = oc.s + oc.d ;
+
+    // oc.t may be a number..
+
+    if ((wordCount >= MAX_CHUNK_SIZE) || ((wordCount >= OK_CHUNK_SIZE) && ("" + oc.t).endsWith('.'))) {
+      chunks.push({text: words, words: wordCount, startcs: startcs, endcs: endcs}) ;
+      startcs = -1 ;
+      endcs = -1 ;
+      wordCount = 0 ;
+      words = "" ;
+    }
+  }
+  if (wordCount > 0) 
+  chunks.push({text: words, words: wordCount, startcs: startcs, endcs: endcs}) ;
+
+  for (let chunk of chunks)     
+    chunk.embedding = await util.getEmbedding(chunk.text) ; 
+
+  return chunks ;
+}
+
+async function processChunksIntoSummaries(chunksHierarchy, maxChunksToCombine, minChunksToCombine) {
+
+  // Find semantic similarity between chunks of text so we can group the most similar for summaries.
+  // The first time we are invoked, chunksHierarchy only contains the original text grouped into sentences or paras.
+  // We are then invoked recursively until there is only one output chunk, the entire document.
+
+  let chunks = chunksHierarchy[chunksHierarchy.length - 1] ;
+  if (chunks.length <= 1) return chunksHierarchy ; // all done!
+
+  console.log("\n\n * * * * * processChunksIntoSummaries HIERARCHY LENGTH " + chunksHierarchy.length + 
+                          " chunks.length " + chunks.length + ":\n\n") ;
+
+
+  console.log("neighbours") ;
+
+  for (let i=0;i<chunks.length;i++) {
+    let t = " Chunk " + i + " " ;
+    if (i < 1) t += "------" ;
+    else t += Number(util.innerProduct(chunks[i].embedding, chunks[i-1].embedding)).toFixed(4) ;
+
+    if (i >= (chunks.length -1)) t += " -----" ;
+    else t += " " + Number(util.innerProduct(chunks[i].embedding, chunks[i+1].embedding)).toFixed(4) ;
+    console.log(t) ;
+  }
+
+/*
+  let simRows = [] ;
+  for (let i=0;i<chunks.length;i++) {
+    let simCols = [] ;
+    for (let j=0;j<=i;j++) {
+      simCols.push(util.innerProduct(chunks[i].embedding, chunks[j].embedding)) ;
+    }
+    simRows.push(simCols) ;
+  }
+  console.log("\nmatrix") ;
+  for (let i=0;i<simRows.length;i++) {
+    let row = "" ;
+    let simCols = simRows[i] ;
+    for (let j=0;j<=i;j++) row += " " + Number(simCols[j]).toFixed(3) ;
+    console.log(row) ;
+  }
+*/
+
+  let sumChunks = [] ;
+  let currentSummary = {text: chunks[0].summary ? chunks[0].summary : chunks[0].text, 
+                        words:chunks[0].words,
+                        startChunk: 0,
+                        startcs: chunks[0].startcs,
+                        endcs: chunks[0].endcs
+                      } ;
+  let runLength = 1 ;
+  
+  for (let i=1;i<chunks.length;i++) {
+    if ((runLength >= maxChunksToCombine) || 
+        (((chunks.length > 4) && (runLength >= minChunksToCombine)) && 
+            (util.innerProduct(chunks[i].embedding, chunks[i-1].embedding) < 0.65))) {
+      currentSummary.endChunk = i - 1 ;
+      sumChunks.push(currentSummary) ;
+      console.log("created summary " + currentSummary.startChunk + " - " + currentSummary.endChunk + 
+              "\n" + currentSummary.text) ;
+
+      currentSummary = { text: chunks[i].summary ? chunks[i].summary : chunks[i].text,
+                         words:chunks[i].words,
+                         startcs: chunks[i].startcs,
+                         endcs: chunks[i].endcs,
+                         startChunk:i} ;
+      runLength = 1 ;
+      startChunk = i ;
+    }
+    else {
+      currentSummary.text += " " + (chunks[i].summary ? chunks[i].summary : chunks[i].text) ;
+      currentSummary.words += chunks[i].words ;
+      currentSummary.endcs = chunks[i].endcs ;
+      runLength++ ;
+    }
+  }
+  currentSummary.endChunk = chunks.length - 1 ;
+  sumChunks.push(currentSummary) ;
+  console.log("created final summary " + currentSummary.startChunk + " - " + currentSummary.endChunk) ;
+
+  console.log("========= reduced to " + sumChunks.length + " summaries ") ;
+let x = 0 ;
+  for (let sumChunk of sumChunks) {
+    console.log("Getting summary for sumCHunk seq " + x++ + " of " + sumChunks.length) ;
+    let s = await getSummary(sumChunk) ;
+    sumChunk.summary = s ;
+    sumChunk.words = s.split(/\s+/).length ;
+    sumChunk.embedding = await util.getEmbedding(sumChunk.summary) ;
+    console.log(" TEXT IN: " + sumChunk.text + "\n SUMMARY: " + sumChunk.summary) ;
+  }
+
+  // recurse summaries to get a single 500 word summary.  Never combine more than 4 at a time..
+  
+  chunksHierarchy.push(sumChunks) ;
+  return processChunksIntoSummaries(chunksHierarchy, 4, 2) ; // go recursive - combine a max of 4 summaries, min of 2 summaries
+}
+
+
+async function getSummary(chunk) { 
+
+  let targetSummaryLength = 300 ;
+  if (chunk.words < targetSummaryLength) targetSummaryLength = chunk.words ;
+
+  try {
+    let prompt = "<|im_start|>system\n" +
+        "Summarise the provided transcript in less than " + targetSummaryLength + " words. " +
+        "Base the summary only on the provided transcript text.  Never provide a preamble or a postscript - " +
+        "just summarise the transcript without further commentary, producing just a shorter version of the provided text.<|im_end|>\n" +
+        "<|im_start|>user\n<text> " +
+        chunk.text +
+        "</text> <|im_end|>\n" +
+        "<|im_start|>assistant\n" ;
+    let startResponseMarker = "<|im_start|>assistant" ;              
+
+   // console.log("\n=================Summary prompt: " + prompt) ;
+
+    let data = {
+          "prompt": prompt,
+          "use_beam_search": false,              
+          "temperature":0.0,
+          "n":1,
+          "max_tokens": Math.ceil(targetSummaryLength * 2 * 1.2),
+          "stream":false,
+          skip_special_tokens: false,                         // skip and stop are attempts to stop startling model from seeming to loop
+          stop: ["<|im_end|>"]                                  // open-hermes-neural-chat blend emits this
+    } ;
+
+    let eRes = await axios.post(appConfig.summaryURL, 
+      data,
+      { headers: {'Content-Type': 'application/json'}
+      }  
+    ) ;
+    //console.log("back from get sum") ;
+    if (!eRes.status == 200) throw "Cant get summary, server returned http resp " + eRes.status ;
+
+   if (!eRes.data || !eRes.data.text) throw "Cant get summary, server returned no data" ;
+   let r = eRes.data.text[0] ;
+   if (startResponseMarker) {
+     let rs = r.indexOf(startResponseMarker) ;
+     if (rs >= 0) r = r.substring(rs + startResponseMarker.length) ;
+   }
+   let ri = r.indexOf("[ANSWER STARTS]") ;
+   if (ri >= 0) r = r.substring(ri+15).trim() ;
+       
+   r = r.replaceAll("</s>", "").replaceAll("" + targetSummaryLength + "-word summary:", "").replaceAll("[ANSWER ENDS]", "") ;
+
+   r = r.replace(/\bThe user\b/g, "The speaker").replace(/\bthe user\b/g, "the speaker")  // one model is doing this..
+        .replace(/<\/|im_end|>/g, "") ; 
+
+   //console.log("\n========== ======= ==== Returned summary: " + r) ;
+   return r ;
+  }
+  catch (e) {
+    console.log("Error in getSummary: " +e) ;
+    return null ;
+  }
+}
+
+async function createAudioSummaries(doc) {
+
+  let ajstr = "" ;
+  for (let jp of doc.transcriptJson) ajstr += jp ;
+  let ajs = JSON.parse(ajstr) ; // original json
+
+  let origChunks = [] ;
+  if (ajs.transcript.chunks.length > 0) {          
+    for (let chunk of ajs.transcript.chunks) 
+      for (let c of chunk.content)  origChunks.push(c) ;
+  }
+
+  let chunks = await processTextIntoChunks(origChunks) ; // contents) ;
+  for (let i=0;i<chunks.length;i++) 
+    console.log("\n==>CHUNK " + i + " - " + " time " + chunks[i].startcs + "-" + chunks[i].endcs +
+      chunks[i].words + " words: " + chunks[i].text) ;
+  
+  // chunk hierarchy - first element is the bottom-most, top is the single doc summary
+
+  chunksHierarchy = [] ;  // will be an array of chunkSummary arrays
+  chunksHierarchy.push(chunks) ;
+  await processChunksIntoSummaries(chunksHierarchy, 5, 1) ; // combine max of 5, min of 1 to get a summary
+
+  if (chunksHierarchy.length == 1) {  // all the text fitted into the summary!
+    let txt = chunksHierarchy[0][0].text ;
+    //console.log("sole text chunk:" + txt) ;
+    chunksHierarchy.push([{  // create a dummy summary
+      summary: txt,
+      startChunk: 0,
+      endChunk: 0,
+      startcs: chunksHierarchy[0][0].startcs,
+      endcs: chunksHierarchy[0][0].endcs,
+      words: chunksHierarchy[0][0].words,
+      embedding: await util.getEmbedding(txt)
+    }]) ;
+  }
+  
+  console.log("\n - - - - chunk hierarchy summary:") ;
+  for (let i=0;i<chunksHierarchy.length;i++) {
+      let level = chunksHierarchy[i] ;        
+      console.log("\n===> Level " + i + " summary count: " + level.length) ;
+      for (let j=0;j<level.length;j++) {
+        let summary = level[j] ;
+        console.log("\n Level " + i + " Summary " + j + " source from " + summary.startChunk +
+          " to " + summary.endChunk + "  Words: " + summary.words +
+          " time " + summary.startcs + "-" + summary.endcs) ;
+        if (i == 0) console.log("SOURCE TEXT:\n" + summary.text) ;
+        else console.log("SUMMARY TEXT:\n" + summary.summary) ;
+
+      }
+  }
+
+  doc.summary = chunksHierarchy[chunksHierarchy.length -1][0].summary ;
+  ajs.summary = doc.summary ;
+
+  let contents = null ;
+  // optimise speakers for lookup
+  let speakerLookup = [] ;
+  for (let sp of ajs.speakers) speakerLookup["sp" + sp.id] = sp.name ;
+
+  for (let chunk of ajs.transcript.chunks) {
+    if (contents == null) contents = "" ;
+    else contents += "\n\n" ;
+    contents += speakerLookup["sp" + chunk.speaker] + ":" ;
+    for (let c of chunk.content) 
+      contents += " " + c.t ;            
+  }
+
+  let updatedMainDoc = await storeMainAudioDoc(ajs, doc, chunksHierarchy, contents) ;
+
+
+
+   
+  console.log("about to delete parts") ;
+  
+  await solr.deleteId(ajs.id, "audioParts") ;
+
+  let partDocs = [] ;
+  console.log("About to add parts to SOLR") ;
+  for (let i=0;i<(chunksHierarchy.length-1);i++) {
+    let levelDocs = chunksHierarchy[i] ;        
+
+    for (let j=0;j<levelDocs.length;j++) {
+      let chunk = levelDocs[j] ;
+      let chunkContent = (i == 0) ? chunk.text : chunk.summary ;
+
+      let xx= [] ; // for some unknown reason, about 1 in 10 docs get an error unless I do this - nothing obvious
+      // and Java parses it just fine, wo dont know reason for this hack
+      for (let k=0;k<768;k++) xx[k] = Number(chunk.embedding[k]).toFixed(8) ;
+
+      partDocs.push({
+        id: ajs.id,
+        level: i,
+        seq: j,
+        collection: doc.collection,
+        content: chunkContent,
+        contentStemmed: chunkContent,
+        startcs: chunk.startcs,
+        endcs: chunk.endcs,
+        lowerLevelSourceStartSeq: chunk.startChunk,
+        lowerLevelSourceEndSeq: chunk.endChunk,
+        embedding: xx 
+      }) ;  
+    }
+  }
+  await solr.addOrReplaceDocuments(partDocs, "audioParts") ;
+  console.log("Added " + partDocs.length + " parts") ;
+  clearCache() ;
+
+}  
+
+
+async function storeMainAudioDoc(ajs, existingDoc, chunksHierarchy, contents) { // ajs = audio javascript
+
+  audioId = ajs.id ;
+
+  if (!ajs.summary) {
+
+    if (existingDoc && existingDoc.summary) {
+      console.log("summary created from existing doc summary " + existingDoc.summary) ;
+      ajs.summary = existingDoc.summary ;    
+      ajs.embedding = null ;
+    }
+  }
+
+  if (ajs.summary) {
+      console.log(" CREATING doc summary embedding from " + ajs.summary) ;
+      ajs.embedding = await util.getEmbedding(existingDoc.summary) ;
+   }
+   else {
+    console.log("No summary, no embedding created") ;
+    ajs.embedding = null ;
+  }
+
+  if (ajs.embedding)  // fixes a problem where embedding has to much precision and blows up SOLR
+      for (let k=0;k<768;k++) ajs.embedding[k] = Number(ajs.embedding[k]).toFixed(6) ;
+
+  let title = "Unknown" ;
+  let collection = "Other" ;
+  if (ajs.metadata.title) {
+    for (let t of ajs.metadata.title) {
+      if ("main" == t.type) title = t.value ;
+      else collection = util.assignPossibleCollection(t.value, collection) ;
+    }
+  }
+  let interviewer = "Unknown" ;
+  let interviewee = (ajs.metadata.author) ? ajs.metadata.author[0] : "Unknown" ;
+  if (ajs.metadata.responsibility) {
+    for (let t of ajs.metadata.responsibility) {
+      if ("Interviewee" == t.type) interviewee = t.name ;
+      else if ("Interviewer" == t.type) interviewer = t.name ;
+    }
+  }
+  let deliveryObject =  ajs.metadata.source || "Unknown" ;
+  let yyyymmdd = Number(ajs.metadata.date) || "Unknown" ;
+  let year = (ajs.metadata.date) ? Number(ajs.metadata.date.substring(0, 4)) : 0 ;
+
+  console.log("\n\nid " + ajs.id + " title " + title + " collection " + collection +
+    " interviewee " + interviewee + " interviewer " + interviewer +
+    " yyyymmdd " + yyyymmdd + " year " + year + " deliveryObject " + deliveryObject) ;
+
+  if (existingDoc) {
+    console.log("about to delete doc: " + ajs.id) ;
+    await solr.deleteId(ajs.id, "audio") ;
+  }
+
+  // add to solr
+
+  // split json transcript into 20K fields
+
+  let trjs = JSON.stringify(ajs) ;
+  let trjss = [] ;
+  while (trjs.length > 0) {
+    if (trjs.length < 20000) {
+      trjss.push(trjs) ;
+      break ;
+    }
+    trjss.push(trjs.substring(0, 20000)) ;
+    trjs = trjs.substring(20000) ;
+  }
+  
+  let mainDoc = [{
+    id: ajs.id,
+    title: title,
+    //comment: comment,
+    collection: collection,
+    loadedBy: 'kfitch',
+    loadedDate: new Date(),
+    summary: (existingDoc) ? existingDoc.summary : "",
+    summaryStemmed: (existingDoc) ? existingDoc.summary : "",
+    transcript: contents,
+    transcriptStemmed: contents,
+    transcriptJson: trjss,
+    interviewee: interviewee,
+    interviewer: interviewer,
+    deliveryObject: deliveryObject,
+    yyyymmdd: yyyymmdd,
+    year: year,
+    maxNonSummaryLevel: (chunksHierarchy) ? chunksHierarchy.length - 2 : 0,
+  }] ;
+  if (ajs.embedding) {
+    mainDoc[0].embedding = ajs.embedding ;
+    console.log("MAIN DOC EMBEDDING assigned to ajs embedding len " + ajs.embedding.length) ;
+  }
+  else console.log("No mainDoc embedding stored ---------------------") ;
+  await solr.addOrReplaceDocuments(mainDoc, "audio") ;
+
+  clearCache() ;
+
+  return mainDoc[0] ;
+}
+
+module.exports = {
+
+	init: async function(appConfigParm) {
+
+		appConfig = appConfigParm ;
+    console.log("util/doc initialised ") ;   
+    log.info("util/doc initialised ") ;     
+	},
+
+  resetDocCache: async function (replacementDocs) {  // just replaces the doc cache
+
+    docCache = [] ;
+    for (let doc of replacementDocs) {
+      await addToCache(doc) ;
+    }
+  },
+  
+  UP TO HERE
+  getInterview: async function(id) {
+  
+    console.log("getInterview id=" + id) ;
+
+    let doc = docCache[id] ;
+    if (doc) return doc ;
+  
+    let selectData = 
+      "wt=json&rows=1" +
+      "&q=id:\"" + encodeURIComponent(id) + "\"" +
+      "&fl=id,title,subtitle,collection,interviewee,interviewer,sponsor,yyyymmdd," +
+          "deliveryObject,loadedBy,loadedDate,summary,maxNonSummaryLevel,comment,embedding,transcriptJson" ;
+
+    let solrRes = null ;
+  
+    try {
+      console.log("GETDOC " + appConfig.solr.getSolrBaseUrl() + "audio/select?" + selectData) ;
+      solrRes = await axios.get(
+        appConfig.solr.getSolrBaseUrl() + "audio/select?" + selectData) ;
+    }
+    catch (e) {
+      console.log("Error solr getDoc " + e) ;
+      if( e.response) console.log(e.response.data) ; 
+      throw e ;
+    }
+  
+    console.log("getDoc status: " + solrRes.status) ;
+    if ((solrRes.status != 200) || !(solrRes.data && solrRes.data.response && solrRes.data.response.docs))
+      throw "SOLR list uploads unexpected response: " + solrRes.status + " or nothing found" ;
+  
+    doc = solrRes.data.response.docs[0] ;
+
+    console.log("GOT DOC " + doc) ;
+    await addToCache(doc) ;
+    return doc ;
+  },
+
+  getMostSimilar: async function(doc) {
+
+    if (!doc) return ;
+    if (doc.mostSimilar) return ;
+
+
+    let selectData = 
+      "wt=json&rows=6" +
+      "&q={!knn f=embedding topK=50}" + JSON.stringify(doc.embedding) + 
+      "&fl=id,title,yyyymmdd,score" ;
+
+    let solrRes = null ;
+
+    try {
+
+      solrRes = await axios.post(
+        appConfig.solr.getSolrBaseUrl() + "audio/select",
+        selectData) ;        
+    }
+    catch (e) {
+      console.log("Error solr getMostSimilar " + e) ;
+      if( e.response) console.log(e.response.data) ; 
+      console.log(e.stack) ;
+      throw e ;
+    }
+
+    if ((solrRes.status != 200) || !(solrRes.data && solrRes.data.response && solrRes.data.response.docs))
+      throw "SOLR list uploads unexpected response: " + solrRes.status + " or nothing found" ;
+
+    let mostSimilar = [] ;
+    for (let i=0;i<solrRes.data.response.docs.length;i++) {
+      let sdoc = solrRes.data.response.docs[i] ;
+
+      if (doc.id == sdoc.id) continue ; // yes, we are self-similar!
+      mostSimilar.push(sdoc) ;
+    }
+    doc.mostSimilar = mostSimilar ;
+  },
+
+
+  // initiated on startup, then runs to completion (empties queue) then sleeps 30sec
+
+  findAudioToSummarise: async function() {
+
+    let selectData = 
+      "wt=json&rows=1" +
+      "&q=*:*" +
+      "&sort=timestamp ASC" +
+      "&fl=id,timestamp,docid,transcriptJson" ;
+    let solrRes = null ;
+  
+    let cutoffTime = Math.floor(new Date().getTime() / 1000) ;
+    try {
+     // console.log("findAudioToSummarise " + appConfig.solr.getSolrBaseUrl() + "audio/audioReindexQueue?" + selectData) ;
+      solrRes = await axios.get(
+        appConfig.solr.getSolrBaseUrl() + "audioReindexQueue/select?" + selectData) ;
+    }
+    catch (e) {
+      console.log("Error solr audioReindexQueue " + e) ;
+      if( e.response) console.log(e.response.data) ; 
+      throw e ;
+    }
+  
+   // console.log("audioReindexQueue status: " + solrRes.status) ;
+    if ((solrRes.status != 200) || !(solrRes.data && solrRes.data.response))
+      throw "SOLR list uploads unexpected response: " + solrRes.status ;
+  
+    if (solrRes.data.response.numFound == 0) {
+      console.log("Nothing in reindex queue") ;
+      return false ;
+    }
+    let reindexRequest = solrRes.data.response.docs[0] ;
+    console.log("Got audio to summarise from reindex queue: " + JSON.stringify(reindexRequest)) ;
+
+    if (cutoffTime < reindexRequest.timestamp) {
+      console.log("Unusually, cutoffTime " + cutoffTime + " less than first reindex queue time " + reindexRequest.timestamp) ;
+      cutoffTime = reindexRequest.timestamp ;
+    }
+
+    // summarise!
+
+    let doc = await this.getDoc(reindexRequest.docid) ;
+    console.log("got doc " + doc) ;
+    doc.transcriptJson = reindexRequest.transcriptJson ; // may have been overwritten of multiple updates processed during update time
+
+    await createAudioSummaries(doc) ;
+
+    console.log(" got summary ") ;
+    // update main audio doc with the main summary and embeddings
+
+    // update audio part docs
+
+    // now delete all records for the docid we just indexed up to and including cutoff time
+
+  
+    let deleteQuery = "docid:\"" + util.jsonEscape(reindexRequest.docid) + "\" AND timestamp:[-999999999 TO " + cutoffTime + "]" ;
+
+    try {
+      await solr.deleteByQuery(deleteQuery, "audioReindexQueue") ;
+    }
+    catch (err) {
+      console.log("findAudioToSummarise  deleteByQuery failed, query: " + deleteQuery + " err:" + err) ;
+      throw err ;
+    }
+    return true ;
+  },
+
+  storeMainAudioDocAndQueueSummarisation: async function(ajs, existingDoc, chunksHierarchy, contents) { // ajs = audio javascript
+
+    // store main document using the ajs
+
+    let mainDoc = storeMainAudioDoc(ajs, existingDoc, chunksHierarchy, contents) ;
+
+    // enqueue creation of chunks/summaries/.. (which WILL update the main doc)
+
+      // split json transcript into 20K fields
+
+    let trjs = JSON.stringify(ajs) ;
+    let trjss = [] ;
+    while (trjs.length > 0) {
+      if (trjs.length < 20000) {
+        trjss.push(trjs) ;
+        break ;
+      }
+      trjss.push(trjs.substring(0, 20000)) ;
+      trjs = trjs.substring(20000) ;
+    }
+
+    let now = new Date().getTime() ;
+    let enqueueDoc = [{
+      id: "" + now,
+      timestamp: Math.floor(now / 1000),  // secs - we store as an int in SOLR
+      docid: ajs.id,
+      transcriptJson: trjss
+    }] ;
+    await solr.addOrReplaceDocuments(enqueueDoc, "audioReindexQueue") ;
+    return mainDoc ;
+  }
+  
+
+} ;

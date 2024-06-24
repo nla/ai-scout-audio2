@@ -1,0 +1,25 @@
+<%- include('../common/header') ; -%>
+
+
+<div id="uploadForm">
+  
+  <H2>Upload a file containing a TEI transcript</H2>
+
+  <form action="/upload" enctype="multipart/form-data" method="post">
+    <table>
+      <tr valign="top">
+        <td>File</td>
+        <td><input type="file" name="uploadedFile"/></td>
+        <td><i>Choose file - it must have a filename matching nla.obj-OBJID-tc.xml </i></td>        
+      </tr>   
+      <tr valign="top">
+        <td> </td>
+        <td><input type="submit" value="Upload" style="margin-top:1em"/></td>
+      </tr>          
+    </table>
+  </form>
+
+  <div style="margin-top:2em"><I>Uploads typically take between 1 and 10 minutes - please be patient!</I></div>
+</div>
+
+<%- include('../common/footer') ; -%>

@@ -1,0 +1,15 @@
+<%- include('../common/header') ; -%>
+
+
+<div id="uploadForm">
+  
+  <H2>Updated an audio transcript</H2>
+
+  <table style="margin-top:1em">
+    <tr valign="top"><td>Id</td><td><%= id %></td></tr>
+  </table>
+   
+  <div style="margin-top:2em"><a href="/doc/outline?id=<%=encodeURIComponent(id)%>" class="outlineLink">Show generated outline</a></div>
+</div>
+
+<%- include('../common/footer') ; -%>

@@ -1,0 +1,387 @@
+<%- include('../common/header') ; -%>
+<script src="/static/javascript/chatWithTranscript.js"></script>
+
+<style>
+
+
+</style>
+
+
+
+
+
+
+<div style="margin-right:1.5em">
+
+
+  <% if (err) { %>
+    <div class="status"><%= err %></div>
+  <% }
+     else { %>
+
+  <H2><%= interview.title %>  
+    <!-- a href="/search?id=<%=interview.interviewId%>" style="font-size:70%" class="searchLink">search</a --> </H2>
+  <table cellspacing=4 cellpadding=4>
+
+    <tr valign="top">
+      <td nowrap="y">Collection</td>  <td><%= interview.collection %>
+         <!-- a href="/upload/update?id=<%=escape(interview.interviewId)%>" class="outlineLink" style="font-size:75%">Update collection or title</a -->
+      </td>
+    </tr>
+
+    <tr valign="top"></tr>  
+      <td>Id</td>  
+      <td><a href="https://nladom-test.nla.gov.au/<%=interview.interviewId%>" target="_blank"><%= interview.interviewId %></a></td>
+    </tr>
+    <!--tr valign="top"></tr>        
+      <td>File size</td>              <td>bytes</td> 
+    </tr-->
+    <tr valign="top"></tr>        
+      <td>Uploaded</td>    <td nowrap="y"><%= interview.loadedBy %> <%= interview.loadedDate %></td> 
+    </tr>
+    <tr valign="top"></tr>        
+      <td>Sessions</td>    <td nowrap="y"><%= (interview.sessions) ? interview.sessions.length : "0" %> </td> 
+    </tr>    
+    <tr valign="top"></tr>        
+      <td>Generated summary of the entire interview</td> 
+      <td>
+        <DIV>         
+          <div style='float:right;width:33%;margin-top:-5em'>
+            <!-- div style="margin-left:1em;font-size:80%">
+              Audio: 
+              <audio id="audioEle"  preload="none" controls style="width:20em">
+			          <source src="/listen/<%=interview.interviewId%>" type="audio/mpeg">
+			          Your browser will not play audio
+			        </audio>
+            </div -->
+
+            <div style='margin-left:1em;border:1px solid #dddddd;padding:8px;font-size:90%'>
+            <B>Possibly similar interviews</B>
+            <P>      
+              <OL>
+              <% for (let sim of interview.mostSimilar) { %>
+                <LI>
+                  <a href="/doc/outline?id=<%=escape(sim.interviewId)%>" target="_blank"> <%- sim.title %></a> 
+                    <span style="font-size:80%;color:#888888">[ <%- Number(sim.score).toFixed(4) %> ]</span>
+                </LI>         
+              <% } %>
+              </OL>
+            </P>
+            </div>
+          </div>  
+         <!-- <div><%- interview.summary.replaceAll("||", " ") %></div>      -->
+          <div class="ssummary"><%- formatSummary(interview) %></div>
+        </DIV>
+      </td>      
+    </tr>
+  </table>
+  <% } %>
+
+<div>
+  <TABLE id="chatHistory">
+  </TABLE>
+</div>
+
+<div style="margin-top:1em">
+    <table>
+        <tr><td style="width:10em">Query the transcript:</td>
+            <td>
+              <textarea id="q" rows="2" cols="80" style="width:50em;background-color:#ddddff"></textarea>
+            </td>
+            <td> <button id="chat">Chat</button></td>
+        </tr>
+    </table>    
+</div>
+<div>
+    <button style="margin-left:1em" id="clearChat">Clear chat (new topic)</button>
+    <span> Select chat mode: </span>
+    <input type="radio" id="chatty" name="chatMode" value="chatty" checked/> <label for="chatty">Chatty</label>
+    <input type="radio" id="findRefs" name="chatMode" value="findRefs" /> <label for="findRefs">Just find references</label>
+</div>
+
+
+
+  <%
+ 
+  function getSentences(text) {
+
+    const segmenterDe = new Intl.Segmenter('en', { 
+        granularity: 'sentence'
+      });
+
+    const sent = segmenterDe.segment(text.trim()) ;
+   // console.log("\nsummary:" + text) ;
+
+    let sentences = [] ;
+    let si = 0 ;
+    for (let s of sent) {
+    // console.log("---->" + s.index + ": " + s.segment) ; 
+      if (si == 0) {
+        sentences.push(s.segment) ;
+        si++ ;
+      }
+      else {
+        let last = sentences[si-1] ;
+        if ((last.length >= 3) && (last.charAt(last.length) != '\n')) {
+          last = last.trim() ;
+        // console.log(" last.charAt(last.length - 3)=" + last.charAt(last.length - 3)) ;
+          if ((last.charAt(last.length - 3) == ' ') || last.endsWith("Dr.") || last.endsWith("Mr.") || 
+              last.endsWith("Mrs.")) {
+          // console.log("joined") ;
+            sentences[si-1] += s.segment ;
+            continue ;
+          }
+        }
+        sentences.push(s.segment) ;
+        si++ ;
+        //console.log("added " + sentences.length) ;
+      }
+    }
+    return sentences ;
+  }
+ 
+  function formatSummary(summaryHolder) {
+
+    if (!summaryHolder.summary) return "No summary." ;
+
+    //console.log("indexToLowerContent="+summaryHolder.indexToLowerContent) ;
+
+    let index = (summaryHolder.indexToLowerContent) ? summaryHolder.indexToLowerContent.split(" ") : null ;
+
+    if (!index) return summaryHolder.summary;
+
+    let sentences = getSentences(summaryHolder.summary) ;
+    let realSC = 0 ;
+    for (let s of sentences)
+      if (s.trim().length > 0) realSC++ ;
+
+    let t = "" ; // + sentences.length + "/" + realSC + " sentences, " + index.length + " indices, indexToLowerContent=" + summaryHolder.indexToLowerContent + " " ;
+     
+
+    let sc = 0 ;
+    for (let s of sentences) {
+      if (s.trim().length <= 0) {
+        if (sc > 0)  t += s.replaceAll("\n", "<BR/>") ;
+      }
+      else {
+        t += "<a href='#L" + index[sc].replace("/", "-") + "' class='hilite'>" + s.replaceAll("\n", "<BR/>") + "</a>&nbsp";
+        sc++ ;
+      }
+    }
+    return t ;
+
+    // return summaryHolder.summary.trim().replaceAll("\n", "<BR/>") ;
+  }
+
+  function showHumanPart(part) {
+    let t = part.substring(1).split("-") ;
+    let r = "" ;
+    for (let tp of t) {
+      if (r) r += "-" ;
+      r += "" + (Number(tp) + 1) ;
+    }
+    return r ;
+  }
+  function showRecursive(container, sessionId, humanSeq, sessionSeq, transcript, transcriptIndex, topLevel, speakerLookup) {
+
+      let r = "" ;
+      let closeShowHideDiv = false ;
+
+      if (!topLevel) {
+         r += "<DIV class='indent'>" ;
+        
+        let target = "L" +  + sessionSeq + "-" + container.partId ;
+        if (container.partId.startsWith("S")) {
+          r += "<DIV id='" + target + "' class='flashable'>" ;
+          r += "<P><B><a name='" + target + "'>Summary of session " + humanSeq + ", part " + 
+                showHumanPart(container.partId) + " " + // formatStartEndCs(container.startcs, container.endcs)  + "</a></B>" +
+                formatStartEndCsWithLocalLink(sessionSeq, container.startcs, container.endcs) + "</a></B>" +
+                "</P>" ;
+          r += "</DIV>" ;
+
+          r += "<DIV class='indent'>" ;
+          if (!container.content) r+= "NO CONTENT" ;
+          else r += container.content.trim().replaceAll("\n", "<BR/>") ;
+          closeShowHideDiv = true ;
+
+          r += "<DIV>" ;
+            let initialState = (false) ? "Hide" : "Show" ;
+            r += '<button class="showHide" id="bt' + target + '">' +  initialState + '</button>' ;
+          r += "<DIV class='hide' id='t" + target + "'>" ;
+          r += "<DIV>" ;
+        
+        }   
+        else {
+          r += "<DIV id='" + target + "' class='flashable'><P><a name='" + target + "' id='" + target + "'>Transcript " +
+            formatStartEndCsWithLocalLink(sessionSeq, container.startcs, container.endcs) + "</a></P>" ;
+              
+          let transcriptId = Math.floor(container.startcs/100) ;
+          r += "<DIV class='transcript flashable' id='TS" + sessionSeq + "T" + transcriptId +"'>" ;
+                
+          let lastChunk = 0 ;
+          let lastContent = 0 ;
+          let lastSpeaker = -1 ;
+          let tc = "" ;
+
+          outer: for (let i=transcriptIndex;i<transcript.transcript.chunks.length;i++) {
+
+            if (lastChunk > i) lastContent = 0 ;
+            else lastChunk = i ;
+            let firstInChunk = true ;
+
+            let chunk = transcript.transcript.chunks[i] ;
+            for (let j=0;j<chunk.content.length;j++) {
+              let content = chunk.content[j] ;
+              lastContent = j ;
+              if (content.s < container.startcs) continue ;
+              if (content.s >= container.startcs) {
+                if (content.s > container.endcs) break outer;
+             
+                if (firstInChunk) {
+                  transcriptIndex = i ;
+                  if (tc.length > 0) tc+= "</div><br clear='all'>" ; // close spoken
+                  if (lastSpeaker != chunk.speaker) {
+                    tc += "<div class='trspeaker'>" + speakerLookup["sp" + chunk.speaker] + ": </div>" ;
+                    lastSpeaker = chunk.speaker ;
+                  }
+                  tc += "<div class='trspoken'>" ;
+                  firstInChunk = false ;
+                }
+                tc += " " + content.t ;
+              }
+            }
+            if (!firstInChunk) tc += "<BR/>"
+         }
+         if (tc.length > 0) tc += "</div><br clear='all'>" ; // close spoken
+          r += tc + "</DIV></DIV></DIV>" ;
+        }          
+      }
+   
+      if (container.parts) {
+        for (let part of container.parts) {
+          if (part.partId == "S") continue ; // special session part - no extra info
+          r += showRecursive(part, sessionId, humanSeq, sessionSeq, transcript, transcriptIndex, false, speakerLookup) ;          
+        }
+
+      }
+      if (closeShowHideDiv) r += "</DIV>"  + "</DIV></DIV>" ;
+      if (closeShowHideDiv) r += "</DIV></DIV>" ;      
+      return r ; 
+  }
+
+
+  function formatDate(yyyymmdd) {
+ 
+    if (!yyyymmdd || (yyyymmdd == "Unknown") || (yyyymmdd.length != 8)) return "Unknown" ;
+
+    return yyyymmdd.substring(6) + "/" +  yyyymmdd.substring(4, 6) + "/" + yyyymmdd.substring(0, 4) ;
+  }
+
+  function formatCs(cs) {
+
+    if ((cs === undefined || cs === null) || (typeof cs !== 'number')) return "" ;
+    let secs = Math.floor(cs / 100) ;
+    let mins = Math.floor(secs / 60) ;
+    let hrs = Math.floor(mins / 60) ;
+    secs = secs - mins * 60 ;
+    mins = mins - hrs * 60 ;
+    return hrs.toString().padStart(2,0) + ":" + mins.toString().padStart(2,0) + ":" +
+          secs.toString().padStart(2,0) ;
+  }
+
+  function formatStartEndCs(startcs, endcs) {
+
+    return formatCs(startcs)  + " - " + formatCs(endcs) ;    
+  }
+
+  function formatStartEndCsWithLink(sessionId, startcs, endcs) {
+
+    //return "formatStartEndCsWithLink for " + sessionId ;
+    return " <a class='timeRange' href='/correct?id=" + sessionId.replaceAll("-", "_") + "_" +
+                Math.floor(startcs / 100) + "' target='_blank'>" +             
+            formatStartEndCs(startcs, endcs) + 
+            " <img src='/static/images/play.png' border=0 height=16/></a>" ;
+  }
+
+  function formatStartEndCsWithLocalLink(sessionSeq, startcs, endcs) {
+
+    //return "formatStartEndCsWithLink for " + sessionId ;
+    return " <span class='timeRange playAudio' data='" + sessionSeq + "-" + startcs + "'>"    +       
+        formatStartEndCs(startcs, endcs) + 
+        " <img src='/static/images/play.png' border=0 height=16/></span>" ;
+  }
+
+  function  formatCorrectId(interviewId, startcs) {
+
+    return "CORR" + interviewId.replace("-", "_") + "_" + Math.floor(startcs / 100) ;
+  }
+
+  let lastChunk = 0 ;
+  let lastContent = 0 ;
+  let lastSpeaker = -1 ;
+  %>
+
+  <H3>Session summaries and transcripts
+    <button class="showHide" style='margin-left:1em' id="showAll">Show all</button>
+    <button class="showHide" style='margin-left:1em' id="hideAll">Hide all</button>
+    </H3>
+
+    <% if (interview.sessions) { 
+        let seq = 1 ; // unrelated to REAL sequence, which often is zero based
+    %>
+    
+     <% for (let session of interview.sessions) { %>
+      <H3>
+        <div style="float:left;background-color:white;opacity:85%">
+             <p style="display:none;margin:0px" id="audioEle<%=session.sessionSeq%>Caption">
+              Session <%= seq %> 
+              <span style="display:none;font-size:50%" id="audioEle<%=session.sessionSeq%>Para">
+                Sync transcript: <input type="checkbox" class="audioParaCheckbox" id="audioEle<%=session.sessionSeq%>Checkbox">
+                <span id="audioEle<%=session.sessionSeq%>Status" style="padding-left:10px"></span>
+              </span>
+              </p>
+              <audio id="audioEle<%=session.sessionSeq%>"  preload="none" controls  style="margin-top:0.5em;width:24em;font-size:50%">
+			          <source src="/listen/<%=session.sessionId%>" type="audio/mpeg" >
+			          Your browser will not play audio
+			        </audio>
+          
+        </div>
+        <div style="margin-left:1em;float:left;margin-top:6px">
+              Session <%= seq %>: <%= session.sessionId %>
+              Date:  <%- formatDate(session.yyyymmdd) %> <span style='font-size:50%'>[Delivery object <%= session.deliveryObject %>]</span>              
+         </div>
+         <br clear="all"/>
+      </H3>      
+    
+      <div class="ssummary indent flashable" id="L<%=session.sessionSeq%>-S">
+        <%- formatSummary(session) %>
+        <BR/><button class="showHide" id="btsess<%=session.sessionId%>">Show</button>
+      </div>
+        
+     <%   let transcriptAsString = "" ; 
+          for (let j of session.transcriptJson) transcriptAsString += j ;
+          if (!transcriptAsString) continue ;
+          let transcript = JSON.parse(transcriptAsString) ;
+          let speakerLookup = [] ;
+          let anySp = false ;
+          for (let sp of transcript.speakers) {
+            speakerLookup["sp" + sp.id] = sp.name ;
+            anySp = true ;
+          }
+          if (!anySp) speakerLookup["sp0"] = "Unknown" ;
+
+      %>
+      <DIV id="tsess<%=session.sessionId%>" class="hide">
+        <%-  showRecursive(session, session.sessionId, seq, session.sessionSeq, transcript, 0, true, speakerLookup) ; %>
+      </DIV>
+      <%
+      seq++ ;
+     }
+     %>
+    
+   <% } %> 
+</div>
+
+
+
+<%- include('../common/footer') ; -%>

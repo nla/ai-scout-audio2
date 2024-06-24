@@ -1,0 +1,11 @@
+multiSession
+web/logs
+web/*.pem
+web/*.gz
+web/log-node
+web/logs/
+web/node_modules/
+web/service-log
+web/static/jquery*
+web/static/transcripts/*.xml
+web/static/jquery/audioCorrect.js

@@ -1,0 +1,55 @@
+<%- include('../common/header') ; -%>
+
+
+<%- include('../common/searchForm') ; -%>
+
+<div id="results">
+  
+  <H3>This is an index of 4,299 oral history interviews comprising 13,372 sessions and over 10,500 hours of audio, 
+    automatically transcribed by WhisperX</H3>
+<OL>
+  <LI>The TEI file of each transcript was processed to extract timings and text.  A collection name is inferred.</LI>
+  <LI>The <a href='https://huggingface.co/microsoft/Phi-3-small-8k-instruct'>microsoft/Phi-3-small-8k-instruct</a> LLM was used to generate summaries.  A summary was generated at a "low" level for around a chunk of 250 words.  An embedding was also generated for each chunk.  Contiguous, similar chunks have a higher level summary generated, and so on until a level with only one summary, the entire transcript summary, is generated.</LI>
+  <LI>These summaries are display on the "outline" page, eg <a href='/doc/outline?id=nla.obj-217766063'>John Gorton interviewed by Clarrie Hermes </a>.  Outlines can be expanded and collapsed and link to the audio delivery system.</LI>
+  <LI>NEW: Sessions from multiple interviews are indexed and displayed together.</LI>
+  <LI>NEW: Better audio playback and syncing of transcript chunks from interview display.</LI>
+  <LI>NEW: Blended (keyword and semantic) searching is currently performed on the summary and lowest level (transcript) text.</LI>
+  <LI>NEW: Sentences in the interview and session level summaries are linked to lower level summaries or blocks of transcripts.</LI>
+  <LI>NEW: An experimental 'chat' capability is enabled on each interview.</LI>
+</OL>
+
+<H3>To do</H3>
+<OL>
+  <LI>The previously available capability to play audio and show each word in sync and apply corrections is not yet available
+      (<a href="https://hinton.nla.gov.au:8016/">Old version here</a> ).
+  </LI>
+  <LI>Improve searching: need better keyword search over larger chunks, including whole document, need to include metadata (title, interviewee), think about returning summaries rather than lowest level chunks, add facetting at least by collection and year</LI>
+  <LI>Identify named entities in transcript, facet on them, contextualise/link to {universe}</LI>
+  <LI>"In line" audio playing (requires simple pipe/proxy for tarkine?) to avoid EULA spam</LI>
+  <LI>Reimplement <a href='https://nla-overproof.projectcomputing.com/audio/transcript?q=nla.oh-0370-0000-0002-l3_nla.obj-215044710_Cecil_Looker_i_v'>transcription correction and speaker assignment</a></LI>
+  <LI>Integration with everything..</LI>
+  <LI>Tuning - searching is currently very dumb/inefficient, esp snippet generation</LI>
+  <LI>Bugs - some TEI timestamps, some summaries (Hayden?)</LI>
+</OL>
+
+<H3>Sample searches</H3>
+<OL>
+  <LI><a href='?stxt=Bombing%20of%20Darwin'>Bombing of Darwin</a></LI>
+  <LI><a href='?stxt=the Labor Party split and the formation of the DLP'>the Labor Party split and the formation of the DLP</a></LI>
+  <LI><a href='?stxt=Australia%27s interests in Antarctica'>Australia's interests in Antarctica</a></LI>  
+  <LI><a href='?stxt=Animosity between Paul Keating and Bob Hawke'>Animosity between Paul Keating and Bob Hawke</a></LI>
+  <LI><a href='?stxt=merchant navy during ww2'>merchant navy during ww2</a></LI>
+
+  <LI><a href='?stxt=Touring musical theatre in outback Queensland'>Touring musical theatre in outback Queensland</a></LI>
+  <LI><a href='?stxt=Doc Evatt and the United Nations'>Doc Evatt and the United Nations</a></LI>
+  <LI><a href='?stxt=notorious criminals and gangs of Sydney'>notorious criminals and gangs of Sydney</a></LI>
+  <LI><a href='?stxt=telecommunications privatisation'>telecommunications privatisation</a></LI>
+  <LI><a href='?stxt=opening of the sydney harbour bridge'>opening of the sydney harbour bridge</a></LI>  
+  <LI><a href='?stxt=parramatta girls prison'>parramatta girls prison</a></LI>  
+</OL>
+
+
+<P>Note problematically transcribed terms  <I>doc evert</I>  <I>Australian Labour Party</I></P>
+</div>
+
+<%- include('../common/footer') ; -%>
