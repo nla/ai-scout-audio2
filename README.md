@@ -87,7 +87,13 @@ Interview and top-level session summaries are linked, at the sentence level, to 
 ## Chat
 
 There's a general chat interface at /chat
-There's an experimental "chat with the transcript" when viewing the transcript.  Sometimes is is fantastic, sometimes disappointing so much more work is needed on prompt and selection/prep of RAG content.  It should also hyperlink from chat response into the transcript.  Perhaps chat should be "everywhere", eg selectable at a session level, or on a time range (although the hierarchical summaries attempt to summarise time ranges).
+There's an experimental "chat with the transcript" when viewing the transcript.  Sometimes is is fantastic, sometimes disappointing so much more work is needed on prompt and selection/prep of RAG content.  
+
+Here's a cherry-picked satisfying example from https://hinton.nla.gov.au:8007/doc/outline?id=nla.obj-220524427
+
+![satisfying chat result](happyChat.jpg)
+
+It should also hyperlink from chat response into the transcript.  Perhaps chat should be "everywhere", eg selectable at a session level, or on a time range (although the hierarchical summaries attempt to summarise time ranges).
 
 ## Playing audio
 
