@@ -1449,7 +1449,7 @@ module.exports = {
 
   storeSessionAndQueueSummarisation:  async function(interviewDoc, session, contents) {   // from TEI js, create a session SOLR rec
 
-    console.log("IN storeSessionAndQueueSummarisation  interviewDoc:" + JSON.stringify(interviewDoc)) ;
+    console.log("IN storeSessionAndQueueSummarisation  interviewDoc:" + JSON.stringify(interviewDoc).substring(0, 1000) + "..." ) ;
     
     // add to solr  
    
@@ -1515,6 +1515,11 @@ module.exports = {
 
 
   queueInterviewSummaryGeneration: async function(interviewDoc) {
+
+    // first delete any existing requests to reindex the interview, because there's now some
+    // session that has updated the interview and that session must be regenerated first..
+
+    await solr.deleteByQuery('docid:"**INTERVIEW**' + interviewDoc.interviewId + '"', "audioReindexQueue") ;
 
     let now = new Date().getTime() ;
     let enqueueDoc = [{

@@ -3,7 +3,8 @@
 	const idToCword =  new Array() ;
 	const wordsByTS = new Array() ;
 	
-	var TRANSCRIPT_ID ; // ="nla.obj-212623729" ;
+	var INTERVIEW_ID ; // ="nla.obj-212623729" ;
+	var SESSION_ID ; // ="nla.obj-212623729" ;
 	var startSec ; // = Number("3") ;
 
 	var audioEle = null ;
@@ -80,7 +81,9 @@
 	window.addEventListener("load", async (event) => {
 		console.log("load event running") ;
 
-		TRANSCRIPT_ID = document.getElementById("TRANSCRIPT_ID").value ;
+		INTERVIEW_ID = document.getElementById("INTERVIEW_ID").value ;
+		SESSION_ID = document.getElementById("SESSION_ID").value ;
+
 		startSec = Number(document.getElementById("startSec").value) ;
 
 		window.onbeforeunload = confirmExit ;
@@ -136,12 +139,29 @@
 				return ;
 			}
 
+			let findText = document.getElementById("findText").value ;
+
 			let newVal = document.getElementById("replaceText").value ;
 			console.log("replace at " + foundIndex + ": " + newVal) ;
 
 			let ele = document.getElementById("w" + idToCword[foundIndex].id) ;
-			ele.innerText = newVal ;
-			idToCword[foundIndex].e.e = newVal ;
+			let e = idToCword[foundIndex].e ;
+
+			let newText = null ;
+			if (e.hasOwnProperty("e")) {	// has an edit
+				newText = (e.e == findText) ? newVal : (newVal + e.e.substring(findText.length)) ;
+			}
+			else {
+				newText = (e.t == findText) ? newVal : (newVal + e.t.substring(findText.length)) ;
+			}
+			ele.innerText = newText ;
+			idToCword[foundIndex].e.e = newText ;
+
+
+		//	let ele = document.getElementById("w" + idToCword[foundIndex].id) ;
+		//	ele.innerText = newVal ;
+		//	idToCword[foundIndex].e.e = newVal ;
+
 			setSaveTranscriptButton(true) ;
 			foundIndex = -1 ;
 			
@@ -168,18 +188,24 @@
  			console.log("in replaceAll ")  ;
 			for (let i = 1;i<idToCword.length;i++) {
 				let e = idToCword[i].e ;
+				let newText = null ;
 				if (e.hasOwnProperty("e")) {	// has an edit
-					if (e.e != findText) continue ;
+					if (!e.e.startsWith(findText)) continue ;
+					newText = (e.e == findText) ? newVal : (newVal + e.e.substring(findText.length)) ;
 				}
-				else if (e.t != findText) continue ;
+				else {
+					if (!e.t.startsWith(findText)) continue ;
+					newText = (e.t == findText) ? newVal : (newVal + e.t.substring(findText.length)) ;
+				}
 
 				console.log("found text " + findText + " at i " + i + " obj " + JSON.stringify(idToCword[i])) ;
 
 				// found!
 
 				let ele = document.getElementById("w" + idToCword[i].id) ;
-				ele.innerText = newVal ;
-				idToCword[i].e.e = newVal ;
+
+				ele.innerText = newText ;
+				idToCword[i].e.e = newText ;
 
 				foundCount++ ;
 			}
@@ -201,10 +227,16 @@
 				for (let i = findStartingWord;i<idToCword.length;i++) {
 					if (i == 0) continue ; // starts at 1
 					let e = idToCword[i].e ;
-					if (e.hasOwnProperty("e")) {	// has an edit
-						if (e.e != findText) continue ;
+					if (!e) {
+						console.log(" no e at index " + i) ;
+						continue ;
 					}
-					else if (e.t != findText) continue ;
+				//	console.log(" i=" +i + " e=" + JSON.stringify(e)) ;
+					if (e.hasOwnProperty("e")) {	// has an edit
+						if (!e.e.startsWith(findText)) continue ;
+					}
+					//else if (!e.t) continue ;
+					else if (!e.t.startsWith(findText)) continue ;
 
 					console.log("found text " + findText + " at i " + i + " obj " + JSON.stringify(idToCword[i])) ;
 					// found!
@@ -242,8 +274,8 @@ XXXXXXXX
 
 		
 		//$("#description").html(TRANSCRIPT_NAME) ;
-		await loadTranscript(TRANSCRIPT_ID) ;	
-		loadAudio(TRANSCRIPT_ID) ;
+		await loadTranscript(INTERVIEW_ID, SESSION_ID) ;	
+		loadAudio(INTERVIEW_ID, SESSION_ID) ;
 		
 		console.log("transcript loaded, about to initListeners") ;
 		initListeners() ;
@@ -932,14 +964,15 @@ XXXXXXXX
 		
 		blob.transcript = {chunks: chunks} ;
 		console.log("saving blob " + JSON.stringify(blob)) ;
-		// nb - we NEVER save or send  the id, metadata and history props - server manages this!
+		// nb - we NEVER save or send  the sessionId, deliveryObject, seq and history props - server manages this!
+
 
 		
 		// off to server !
 
 		setSaveTranscriptButton(false) ;
 		try {
-			const response = await fetch("/correct/editedTranscript?id=" + TRANSCRIPT_ID, {
+			const response = await fetch("/correct/editedTranscript?interviewId=" + INTERVIEW_ID + "&sessionId=" + SESSION_ID, {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
@@ -963,10 +996,11 @@ XXXXXXXX
 		}		 	
 	}
 	
-	async function loadTranscript(transcriptId) {	// may not be any..
+	async function loadTranscript(interviewId, sessionId) {	// may not be any..
 
-    console.log("loadTranscript " + transcriptId) ;
-		const resp = await fetch("/doc/transcriptJSON?id=" + transcriptId + "&nonce=" +(new Date())) ;
+    console.log("loadTranscript interview " + interviewId + " session " + sessionId) ;
+		const resp = await fetch("/doc/transcriptJSON?interviewId=" + interviewId + 
+													"&sessionId=" + sessionId + "&nonce=" +(new Date())) ;
 		const ts = await resp.json() ;
 		renderTranscript(ts) ;
 	
@@ -1067,7 +1101,7 @@ XXXXXXXX
 		const histories = ts.history ;
 		var histEle = document.getElementById("history") ;
 		let historyContents = "" ;
-		for (let s=0;s<histories.length;s++) {
+		if (histories) for (let s=0;s<histories.length;s++) {
 			const h = histories[s] ;
 			historyContents =  "<P>" + h + "</P>" + historyContents ;
 			// hinton histEle.prepend("<P>" + new Date(h.timestamp) + " by " + h.user + ": " + h.type) ;
@@ -1109,6 +1143,7 @@ XXXXXXXX
 			const words = chunk.content ;
 			for (let w=0;w<words.length;w++) {
 				const word = words[w] ;
+				if (!(typeof word.t === 'string')) word.t = "" + word.t ;	// convert numbers to string - makes find/replace easier..
 				wid++ ;
 				//const ele = "<span id='w" + wid + "' class='w1' ondblclick='cw()' onkeyup='kp()' contenteditable='true'>" + 
 				const ele = "<span id='w" + wid + "' class='w1' contenteditable='true'>" + 
@@ -1124,15 +1159,15 @@ XXXXXXXX
 		tsEle.innerHTML = s ;
 	}
 	
-	function loadAudio(transcriptId) {
+	function loadAudio(interviewId, sessionId) {
 	
-    console.log("loadAudio " + transcriptId) ;
+    console.log("loadAudio " + interviewId + " sessionId " + sessionId) ;
 
-		const audioLocation = "public/audio/mp3/" + transcriptId + ".mp3" ;
+	//	const audioLocation = "public/audio/mp3/" + transcriptId + ".mp3" ;
 		const audio = "<audio id='audioEle' controls autoplay playsinline=''" + 
 			// hinton ontimeupdate='timeUpdate()' 
 			" style='width:100%'>" +
-			"<source src='/listen/" + transcriptId + "' type='audio/mpeg'>" +
+			"<source src='/listen/" + sessionId + "' type='audio/mpeg'>" +
 			"Your browser will not play audio" +
 			"</audio>" +
 

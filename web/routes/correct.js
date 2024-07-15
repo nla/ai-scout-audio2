@@ -5,9 +5,10 @@ const util = require('../util/utils') ;
 const https = require('https') ;
 const fs = require('fs') ;
 const interviewUtil = require('../util/interview') ;
- TODO - fix 
 let appConfig = null ;
-        
+
+// TODO - change from doc to session (in progress)
+
 function init(appConfigParm) {
 
   appConfig = appConfigParm ;
@@ -16,36 +17,43 @@ function init(appConfigParm) {
   return router ;  
 }
 
+
+
 async function editedTranscript(req, res) {   
 
   try {
-    let id = req.query.id ;
-    console.log("editedTranscript got id " + id) ;
+    let interviewId = req.query.interviewId ;
+    let sessionId = req.query.sessionId ;
+    console.log("editedTranscript got id " + interviewId) ;
 
-    if (!id.startsWith("nla.obj")) throw new Error("Unexpected correct id - no nla obj") ;
+    if (!interviewId.startsWith("nla.obj")) throw new Error("Unexpected correct interviewId - no nla obj") ;
+    if (!sessionId.startsWith("nla.obj")) throw new Error("Unexpected correct sessionId - no nla obj") ;
 
     let newAudioTranscript = req.body ;
     console.log("GOT JSON BODY:" + JSON.stringify(newAudioTranscript).substring(0, 500) + " ...") ;
 
-    // note, the transcript DOES NOT contain the  id, metadata and history props, and if it does, we
-    // replace them anyway from the stored versions (and we updated the history)
+    // TODO converting from single interview to sessions...
+    // each session transcript is "standalone"
+
+    let interview = await interviewUtil.getInterview(interviewId) ;
+
+    let session = null ;
+    if (interview.sessions) 
+      for (let s of interview.sessions) 
+        if (sessionId == s.sessionId) {
+          session = s ;
+         break ;
+        }
+
+    if (!session) throw new Error("Correct session " + sessionId + "not found in interview " + interviewId) ;
 
     let oldTranscriptAsString = "" ;
-    try {
-      let doc = await docUtil.getDoc(id) ;
-      for (let j of doc.transcriptJson) oldTranscriptAsString += j ;
-    }
-    catch (e) {
-      console.log("editedTranscript error in getDoc:" + e) ;
-      console.log(e.stack) ;
-      throw new Error("Error in getDoc:" + e)
-    }
-  
+    for (let j of session.transcriptJson) oldTranscriptAsString += j ;
 
     // save old transcript to a file
 
     let historyTranscriptName = appConfig.relativeTranscriptsDir + "history/" +
-        id + "--replaced-" + util.currentTimestampAsYYYYMMDDHHmmSSSSS() + 
+        interviewId + "--" + sessionId + "--replaced-" + util.currentTimestampAsYYYYMMDDHHmmSSSSS() + 
         "-R" + Math.floor(Math.random() * 1000) + ".json" ;
     try {
       fs.writeFileSync(historyTranscriptName, oldTranscriptAsString) ;
@@ -58,24 +66,49 @@ async function editedTranscript(req, res) {
 
     let oldTranscript = JSON.parse(oldTranscriptAsString) ;
 
-    newAudioTranscript.id = oldTranscript.id ;
-    newAudioTranscript.metadata = oldTranscript.metadata ;
-    newAudioTranscript.history = oldTranscript.history ;
+    // copy fields that cant be changed (and shouldnt be supplied)
+
+    newAudioTranscript.sessionId = oldTranscript.sessionId ;
+    newAudioTranscript.seq = oldTranscript.seq ;
+    newAudioTranscript.yyyymmdd = oldTranscript.yyyymmdd ;
+    newAudioTranscript.deliveryObject = oldTranscript.deliveryObject ;
+    
+    newAudioTranscript.history = oldTranscript.history || [] ;
+
     newAudioTranscript.history.push("Edited by UNKNOWN on " + util.formatAsSqlTimestamp(new Date())) ;
 
     // save new version to the database, queue for reindexing
  
     let contents = null ;
 
-    console.log(" id " + newAudioTranscript.id + "chunks: " + newAudioTranscript.transcript.chunks.length) ;
+    console.log(" id " + newAudioTranscript.sessionId + " chunks: " + newAudioTranscript.transcript.chunks.length) ;
 
-    if (newAudioTranscript.transcript.chunks.length > 0) {
+    let newSession  = {
+      interviewId: session.interviewId,
+      sessionId: session.sessionId,
+      deliveryObject: session.deliveryObject,
+      transcript: newAudioTranscript.transcript,
+      speakers: newAudioTranscript.speakers, 
+      seq: newAudioTranscript.seq,
+      sessionSeq: newAudioTranscript.seq,
+      yyyymmdd: session.yyyymmdd,
+      title: session.title,
+      collection: session.collection,
+      loadedBy: session.loadedBy,
+      loadedDate: session.loadedDate,
+      interviewee: session.interviewee,
+      interviewer: session.interviewer,
+      sponsor: session.sponsor
+    }
 
-      // optimise speakers for lookup
-      let speakerLookup = [] ;
-      for (let sp of newAudioTranscript.speakers) speakerLookup["sp" + sp.id] = sp.name ;
+    console.log("   speakers: " + JSON.stringify(newSession.speakers)) ;
+    
+    if (newSession.transcript.chunks.length > 0) {
       
-      for (let chunk of newAudioTranscript.transcript.chunks) {
+      let speakerLookup = [] ;      // optimise speakers for lookup
+      for (let sp of newSession.speakers) speakerLookup["sp" + sp.id] = sp.name ;
+      
+      for (let chunk of newSession.transcript.chunks) {
         if (contents == null) contents = "" ;
         else contents += "\n\n" ;
         contents += speakerLookup["sp" + chunk.speaker] + ":" ;
@@ -84,11 +117,20 @@ async function editedTranscript(req, res) {
       }
     }
 
-    if (!contents || contents.length < 1) throw "File has no or little content" ;
-    
-    console.log("contents length: " + contents.length) ;
+    if (!contents || contents.length < 16) {
+      console.log("Session " + newSession.sessionId + " has no or little content") ;
+      if (!contents) contents = "No transcript content for this session." ;
+    }
+  
+    console.log("Session " + newSession.sessionId + " contents length: " + contents.length) ;
 
-    mainDoc = await docUtil.storeMainAudioDocAndQueueSummarisation(newAudioTranscript, oldTranscript, null, contents) ;
+    await interviewUtil.storeSessionAndQueueSummarisation(interview, newSession, contents) ;          
+    
+    // after sessions are done, queue the interview  
+
+    console.log("QUEUING INTERVIEW SUMMARY GENERATION ---") ;
+    await interviewUtil.queueInterviewSummaryGeneration(interview) ; 
+
     res.status(200).send({message: "ok"}) ;
   }
   catch (err) {
@@ -102,28 +144,46 @@ async function correct(req, res) {
   
 
   try {
-    let t = req.query.id ;
-    if (!t.startsWith("nla.obj")) throw new Error("Unexpected correct id - no nla obj") ;
-    let i = t.lastIndexOf("_") ;
-    if (i < 0) throw new Error("Unexpected correct id - no time") ;
-    let startSec = Number(t.substring(i+1)) ;
-    let id = t.substring(0, i).replace("_", "-") ;
 
-    // throw new Error("Not implemented yet, but id=" + id + ", startSec=" + startSec) ;
+    let interviewId = req.query.interviewId ;
+    if (!interviewId.startsWith("nla.obj")) throw new Error("Unexpected correct interviewId id - no nla obj") ;
+
+    let sessionId = req.query.sessionId ;
+    if (!sessionId.startsWith("nla.obj")) throw new Error("Unexpected correct session id - no nla obj") ;
+
+    let i = sessionId.lastIndexOf("_") ;
+    if (i < 0) throw new Error("Unexpected correct session id - no time") ;
+    let startSec = Number(sessionId.substring(i+1)) ;
+    sessionId = sessionId.substring(0, i).replace("_", "-") ;
 
 
-    let doc = {} ;
+
+    let interview = {} ;
     let err = null ;
     try {
-      doc = await docUtil.getDoc(id) ;
-      //console.log("id:" + req.query.id + " doc:" + JSON.stringify(doc)) ;
+      interview = await interviewUtil.getInterview(interviewId) ;
     }
     catch (e) {
-      console.log("Error in getDoc:" + e) ;
+      console.log("Error in correct getInterview:" + e) ;
       throw e ;
     }
 
-    res.render('correct', {req: req, appConfig: appConfig, doc: doc, startSec:startSec }) ;
+    // find the session
+
+    let session = null ;
+    if (interview.sessions) 
+      for (let s of interview.sessions) 
+        if (sessionId == s.sessionId) {
+          session = s ;
+          break ;
+        }
+
+    if (!session) throw new Error("Session " + sessionId + "not found in interview " + interviewId) ;
+    
+
+    res.render('correct', {req: req, appConfig: appConfig, interviewId: interviewId,
+      title: interview.title,
+      session: session, startSec:startSec }) ;
 
   }
   catch (err) {

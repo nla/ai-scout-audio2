@@ -182,7 +182,7 @@
     }
     return r ;
   }
-  function showRecursive(container, sessionId, humanSeq, sessionSeq, transcript, transcriptIndex, topLevel, speakerLookup) {
+  function showRecursive(interview, container, sessionId, humanSeq, sessionSeq, transcript, transcriptIndex, topLevel, speakerLookup) {
 
       let r = "" ;
       let closeShowHideDiv = false ;
@@ -213,7 +213,10 @@
         }   
         else {
           r += "<DIV id='" + target + "' class='flashable'><P><a name='" + target + "' id='" + target + "'>Transcript " +
-            formatStartEndCsWithLocalLink(sessionSeq, container.startcs, container.endcs) + "</a></P>" ;
+            formatStartEndCsWithLocalLink(sessionSeq, container.startcs, container.endcs) + "</a>" +
+            " [<a href='/correct?interviewId=" + interview.interviewId + "&sessionId=" + sessionId + "_" +
+             Math.floor(container.startcs / 100) + "'>Correct transcript</a>]" +
+            "</P>" ;
               
           let transcriptId = Math.floor(container.startcs/100) ;
           r += "<DIV class='transcript flashable' id='TS" + sessionSeq + "T" + transcriptId +"'>" ;
@@ -260,7 +263,7 @@
       if (container.parts) {
         for (let part of container.parts) {
           if (part.partId == "S") continue ; // special session part - no extra info
-          r += showRecursive(part, sessionId, humanSeq, sessionSeq, transcript, transcriptIndex, false, speakerLookup) ;          
+          r += showRecursive(interview, part, sessionId, humanSeq, sessionSeq, transcript, transcriptIndex, false, speakerLookup) ;          
         }
 
       }
@@ -372,7 +375,7 @@
 
       %>
       <DIV id="tsess<%=session.sessionId%>" class="hide">
-        <%-  showRecursive(session, session.sessionId, seq, session.sessionSeq, transcript, 0, true, speakerLookup) ; %>
+        <%-  showRecursive(interview, session, session.sessionId, seq, session.sessionSeq, transcript, 0, true, speakerLookup) ; %>
       </DIV>
       <%
       seq++ ;

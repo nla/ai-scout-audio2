@@ -26,25 +26,40 @@ async function transcriptJSON(req, res) {
     return ;
   }
   
-  if (!req.query.id) {
-    res.json({ok: false, error:"no doc id"}) ;
+  if (!req.query.interviewId) {
+    res.json({ok: false, error:"no interviewId"}) ;
     return ;
   }
+  if (!req.query.sessionId) {
+    res.json({ok: false, error:"no sessionId"}) ;
+    return ;
+  }  
 
   let interview = {} ;
   let err = null ;
   try {
-    interview = await interviewUtil.getInterview(req.query.id) ;
-    //console.log("id:" + req.query.id + " interview:" + JSON.stringify(interview)) ;
+    interview = await interviewUtil.getInterview(req.query.interviewId) ;
   }
   catch (e) {
-    console.log("Error in getDoc:" + e) ;
+    console.log("Error in transcriptJSON getInterview:" + e) ;
     console.log(e.stack) ;
     err = e ;
   }
 
+  // find the session
+
+  let session = null ;
+  if (interview.sessions) 
+    for (let s of interview.sessions) 
+      if (req.query.sessionId == s.sessionId) {
+        session = s ;
+        break ;
+      }
+
+  if (!session) throw new Error("Session " + req.query.sessionId + "not found in interview " + req.query.interviewId) ;
+
   let jstr = "" ;
-  for (let j of interview.transcriptJson) jstr += j ;
+  for (let j of session.transcriptJson) jstr += j ;
   res.setHeader('Content-Type', 'application/json') ;
   res.end(jstr) ;
 }

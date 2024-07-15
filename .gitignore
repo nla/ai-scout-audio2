@@ -1,4 +1,5 @@
 multiSession
+tei.json
 web/logs
 web/*.pem
 web/*.gz
@@ -8,4 +9,5 @@ web/node_modules/
 web/service-log
 web/static/jquery*
 web/static/transcripts/*.xml
+web/static/transcripts/history/*
 web/static/jquery/audioCorrect.js

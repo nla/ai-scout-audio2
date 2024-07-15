@@ -151,6 +151,10 @@ async function uploadAll(req, res) {
 
   let kkk = 0 ;
   for (let dir of dirs) {
+
+    if ((dir == 'nla.obj-195963802') || (dir == 'nla.obj-195963802')) ; //nla.obj-195963802
+    else continue ;
+
     //  if (dir != 'nla.obj-206971479') continue ;
     //if (dir != 'nla.obj-193368612') continue ; // only 1 session
     //if (dir != 'nla.obj-192214659') continue ; // DEBUG 2 sessions no date
@@ -160,8 +164,8 @@ async function uploadAll(req, res) {
   // if (dir != 'nla.obj-193561776') continue ; // BIG
 
   kkk++ ;
-   if (kkk <= 4500) continue ;
-   if (kkk > 994500) break ;
+   //if (kkk <= 4500) continue ;
+   //if (kkk > 994500) break ;
     res.write("Dir: " + JSON.stringify(dir) + "\n") ;
 
     // expect a dir name like nla.obj-

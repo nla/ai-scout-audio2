@@ -103,7 +103,7 @@ app.use(appConfig.urlPrefix + '/search',  require('./routes/search')	.init(appCo
 app.use(appConfig.urlPrefix + '/upload',  require('./routes/upload')	.init(appConfig)) ;
 app.use(appConfig.urlPrefix + '/doc', 	  require('./routes/doc')			.init(appConfig)) ;
 app.use(appConfig.urlPrefix + '/listen',  require('./routes/listen')	.init(appConfig)) ;
-// TODO app.use(appConfig.urlPrefix + '/correct', require('./routes/correct')	.init(appConfig)) ;
+app.use(appConfig.urlPrefix + '/correct', require('./routes/correct')	.init(appConfig)) ;
 
 app.use(appConfig.urlPrefix + '/chat', 		require('./routes/chat')		.init(appConfig)) ; // bogus generic chat
 
