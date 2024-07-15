@@ -10,5 +10,4 @@ web/service-log
 web/static/jquery*
 web/static/transcripts/*.xml
 web/static/transcripts/history/*
-web/static/jquery/audioCorrect.js
 junk/*

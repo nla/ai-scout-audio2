@@ -824,7 +824,6 @@
 
 		const speakers = ts.speakers ;
 
-
 		for (let s=0;s<speakers.length;s++) {
 			const speaker = speakers[s] ;
 			speakerList["spk" + speaker.id] = speaker.name ;
