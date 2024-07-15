@@ -19,6 +19,8 @@
 	var currentSpeakerEleForChange = null ;
 	
 	const speakerList = {} ; // {spk1: "Speaker Unknown"} ;
+
+	let undoStack = [] ;
 	
 	function lookupSpeaker(spk) {
 	
@@ -34,13 +36,7 @@
 		setTimeout(function(){ console.log("hide snackbar") ; document.getElementById("snackbar").classList.remove("snackShow") ; }, 4000) ;
 
 		//alert("snackbar: " + msg) ;
-		/* hinton
-		var snackDiv = $("#snackbar") ;
-		snackDiv.addClass("snackShow") ;
-		snackDiv.html(msg) ;
-		setTimeout(function(){ console.log("hide snackbar") ; snackDiv.removeClass("snackShow") ; }, 4000) ;
-		*/
-		// note - that 4sec timeout has to be synced with the elapsed time for fadeout in the animation css  
+ 
 	}
 	
 	function setSaveTranscriptButton(enabled) {
@@ -264,12 +260,6 @@
 				showSnackBar("Wrapping find to start") ;
 			}
 		}) ;
-		/*
-XXXXXXXX
-		<div style='width:5em;display:inline-block'>Find: </div> <input type="text" size="8" id="findText"> <BUTTON id='findNext'>Find next</BUTTON><BR/>
-		<div style='width:5em;display:inline-block'>Replace: </div> <input type="text" size="8" id="replaceText">
-		 <BUTTON id='replaceAll'>Replace All</BUTTON>    <BUTTON id='replace'>Replace</BUTTON>
-*/
 
 
 		
@@ -284,72 +274,7 @@ XXXXXXXX
 		console.log("load event done") ;
 	}) ;
 
-	/* hinton $(function() {
 	
-		howToDialog = $("#howTo").dialog({
-			autoOpen: false, modal: true,
-			width: '75%', height: '650'
-
-		}) ;
-		
-		$("#sfButton").button().on("click", function() {
-			save() ;
-		}) ;
-
-		$("#showHowTo").button().on("click", function() {
-			howToDialog.dialog("open") ;
-		}) ;
-		
-		speakerDialog = $("#popupSpk").dialog({
-			autoOpen: false, modal: true,
-			width: '400', height: '400',			
-			open: function() {	// hack to close if clicked "outside" the modal
-				jQuery('.ui-widget-overlay').bind('click', function() {
-					jQuery('#popupSpk').dialog('close') ;
-				})
-			}
-		}) ;
-		
-		window.onbeforeunload = confirmExit;
-		function confirmExit() {
-			if (unsavedChanges) {
-				return "You have made changes to the features on this map but not saved them yet.  Do you wish to discard your changes?" ;
-			}
-		}
-		
-		setSaveTranscriptButton(false) ;
-
-		$("#SyncTranscript").change(function() {
-			if (this.checked) {
-				syncTranscript = true ;			
-				showSnackBar("The transcript will now automatically scroll to match the audio") ;
-			}
-			else {
-				syncTranscript = false ;
-				showSnackBar("Automatic scrolling of the transcript has been disabled") ;
-			}				
-		}) ;
-		 
-		$("#ts").on('keydown', keydown) ;
-		$("#right").on('keydown', keydown) ;
-		$("#headerDiv").on('keydown', keydown) ;
-		$("#nlaBanner").on('keydown', keydown) ;
-		$("#audioDiv").on('keydown', keydown) ;
-		
-		$("#ts").on('keyup', keyup) ;
-		
-		//$("body").on('keydown', keydown) ;
-		
-		
-		//$("#description").html(TRANSCRIPT_NAME) ;
-		loadTranscript(TRANSCRIPT_ID) ;	
-		loadAudio(TRANSCRIPT_ID) ;
-		
-		setTimeout(initListeners, 1000) ;	// wtf?  yes, if we attempt the dblclick keyup etc listeners immediately, they dont find the elements !?
-		
-		
-	});
-	*/
 	
 	function initListeners() {
 	
@@ -403,7 +328,6 @@ XXXXXXXX
 					// no change - was it diff before?
 					console.log(" no change and e is " + wordObj.e.e)
 					if (wordObj.e.e) {	// yes..
-						// hinton $("#w" + wid).removeClass("wChanged") ;
 						document.getElementById("w" + wid).classList.remove("wChanged") ;
 						delete(wordObj.e.e) ;				
 					}
@@ -473,44 +397,6 @@ XXXXXXXX
 
 		console.log("done initListeners") ;
 
-/* hinton
-		console.log(" num of w1 eles: " + $(".w1").length)
-		$(".w1").dblclick(function() {
-		
-			const wid = this.id.substring(1) ;	// strip the w
-			const wordObj = idToCword[wid] ;
-
-			console.log(" wordObj=" + JSON.stringify(wordObj)) ;
-			const seekTo = (wordObj.s - 0) / 1000 ;
-			console.log("seeked to " + seekTo)
-			audioEle.currentTime = seekTo ;
-			if (audioEle.paused) audioEle.play() ;
-		}) ;
-		
-	
-		$(".w1").keyup(function() {
-
-			const wid = this.id.substring(1) ;	// strip the w
-			const wordObj = idToCword[wid] ;
-			console.log("kp wid=" + wid + " contents=" + this.innerHTML + " wo=" + JSON.stringify(wordObj)) ;
-			if (this.innerHTML == wordObj.e.t) {
-				// no change - was it diff before?
-				console.log(" no change and e is " + wordObj.e.e)
-				if (wordObj.e.e) {	// yes..
-					$("#w" + wid).removeClass("wChanged") ;
-					delete(wordObj.e.e) ;				
-				}
-			}
-			else {	// different from orig value
-				console.log(" change and e is " + wordObj.e.e)
-				if (!wordObj.e.e) $("#w" + wid).addClass("wChanged") ;	// first change
-				wordObj.e.e = this.innerHTML ;	
-				setSaveTranscriptButton(true) ;
-			}
-		}) ;
-	
-		//const ele = "<span id='w" + wid + "' class='w1' ondblclick='cw()' onkeyup='kp()' contenteditable='true'>" + 
-		*/
 	} 
 	
 	function shspkMenu(e) {	// click on speaker
@@ -518,8 +404,7 @@ XXXXXXXX
 		console.log("shspkMenu " + e) ;
 		//alert("shspkMenu not impl") ;
 
-		//document.querySelector("input[name='spks']",
-		
+		//document.querySelector("input[name='spks']",	
 
 		
 		document.getElementById("spkall").checked = false ; 	// force OFF the change all check box!
@@ -550,58 +435,8 @@ XXXXXXXX
 		document.getElementById("spkCurrent").innerHTML = lookupSpeaker("spk" + spkNum) ;
 		
 		document.getElementById("popupSpk").showModal() ;
-		//speakerDialog.dialog("option", "position", { my: "left top", at: "right top", of: e }) ;
-		//speakerDialog.dialog("open") ;
-		
-		/* hinton
-		$("input[type=radio][name=spks]").unbind() ;
-		
-		$("#spkall").prop('checked', false) ; 	// force OFF the change all check box!
-		
-		currentSpeakerEleForChange = $(e) ;
-		
-		var spk = getSpeakerFromClassnames(currentSpeakerEleForChange.parent().parent().parent()) ;
-		const spkNum = spk.substring(3) ;
-				
-		console.log("spk: " + spk + " num " + spkNum) ;
 
-		var s = "<input type='hidden' id='oldSpk' value='" + spkNum + "'/>" ;
-		
-		for (let i=1;i<=maxSpk;i++) {
-			var isCurrent = (i == spkNum) ;
-			const rbId = "rbId" + i ;
-			s+= "<input type='radio' name='spks' class='spks' id='" + rbId + "' value='spk" + i + "'" ;			
-			s+= (isCurrent) ? " checked='checked'" : "" ;
-			s+= "> <label for='" + rbId + "'><span id='rb-spk" + i + "' " ;
-			if (i > 1) s += " contenteditable='true' onkeypress='spkKeyPress(event)'" ;
-			s+= ">" + lookupSpeaker("spk" + i) + "</span></label><br/>"
-		}
-		s+= "<input type='radio' name='spks' class='spks' value='spk" + (maxSpk + 1) + "'> " +
-			" <input type='text' size='16' id='rb-new' placeholder='new speaker name' onkeypress='spkKeyPress(event)'>" ;
-		
-		$("#speakerList").html(s) ;
-		$("#spkCurrent").html(lookupSpeaker("spk" + spkNum)) ;
-		
-		
-		speakerDialog.dialog("option", "position", { my: "left top", at: "right top", of: e }) ;
-		speakerDialog.dialog("open") ;
-		
-		$('input[type=radio][name=spks]').change(function () {
-		
-			var chosen = this.value ;
-			console.log("RADIO CHOSN " + chosen) ;
-			const spkNum = chosen.substring(3) ;
-			if (spkNum > maxSpk) {
-				console.log("new speaker selected " + $("#rb-new").val()) ;
-				if ($("#rb-new").val().trim().length < 1) {
-					console.log("pending new name input..") ;
-					return ;
-				}
-				processSpeakerSelection(spkNum) ;
-			}
-			else processSpeakerSelection(spkNum) ;
-		}) ;		
-		*/
+
 	}
 	
 	function spkKeyPress(e) {
@@ -618,12 +453,7 @@ XXXXXXXX
 			}
 		}
 	
-		/* hinton
-		var spkrChecked = $('input[type=radio][name=spks]:checked').val() ;
-		console.log("in spkkeypress, spkrChecked=" + spkrChecked ) ;
-		const spkNum = spkrChecked.substring(3) ;
-		processSpeakerSelection(spkNum) ;		
-		*/
+
 	}
 	
 	function processSpeakerSelection(spkNum) {
@@ -688,69 +518,12 @@ XXXXXXXX
 			p.classList.remove("spk" + oldSpkNum) ;
 			p.classList.add("spk" + spkNum) ;
 
-			// hinton ?? currentSpeakerEleForChange.parent().parent().parent().removeClass("spk" + oldSpkNum).addClass("spk" + spkNum) ;
+
 		}
 
 		console.log("done") ;	
 		document.getElementById("popupSpk").close() ;
 
-
-
-
-		/* hinton
-
-		const oldSpkNum = $("#oldSpk").val() ;
-		setSaveTranscriptButton(true) ;
-		console.log("*** processSpeakerSelection, oldSpkNum=" + oldSpkNum + ", new spk num=" + spkNum) ;
-		
-		var newName = $("#rb-new").val().trim() ;
-		// check content editable and new text..
-		if (spkNum > maxSpk) { // theyve selected new speaker - make sure it has a name
-			if (newName.length < 1) {
-				alert("enter a name for the new speaker") ;
-				return ;
-			}
-		}
-		
-		// have any of the names changed?
-		for (let i=2;i<=maxSpk;i++) { // start at 2 coz #1 is unknowm speaker}
-			const existingName = lookupSpeaker("spk" + i) ;
-			const editedName = $("#rb-spk" + i).text() ;
-			if (existingName != editedName) {
-				console.log("DIFF NAME editedName="+editedName +  " was " + existingName) ;
-				speakerList["spk" + i] = editedName ;
-				$(".spkName.spk" + i +" a").text(editedName) ;
-			}			
-		}		
-		
-		// ok, any new speaker name?
-		if (newName.length > 0) {
-			maxSpk++ ;
-			const spkKey = "spk" + maxSpk ;
-			speakerList[spkKey] = newName ;
-		}	
-		
-		const newSpeakerName =  lookupSpeaker("spk" + spkNum) ;
-		const changeAll = $("#spkall").is(':checked') ;
-		console.log("changeAll="+ changeAll + ", newSpeakerName="+newSpeakerName) ;
-		
-
-		
-		if (changeAll) {		
-			
-			$(".spkName.spk" + oldSpkNum +" a").text(newSpeakerName) ;
-			$(".spk" + oldSpkNum).removeClass("spk" + oldSpkNum).addClass("spk" + spkNum) ;
-		}
-		else {	// just this ele
-		
-			currentSpeakerEleForChange.text(newSpeakerName) ;
-			currentSpeakerEleForChange.parent().removeClass("spk" + oldSpkNum).addClass("spk" + spkNum) ;
-			currentSpeakerEleForChange.parent().parent().parent().removeClass("spk" + oldSpkNum).addClass("spk" + spkNum) ;
-		}
-
-		console.log("done") ;	
-		speakerDialog.dialog("close") ;
-		*/
 	}
 
 
@@ -771,7 +544,7 @@ XXXXXXXX
 				// split at this pos - this pos word will start a new speaker section
 				// this wordobj and all others in the chunk move to a new chunk started by a new ts1 timestamp
 				
-				const pivotEle = document.getElementById(wwid) ; // hinton $("#" + wwid) ;
+				const pivotEle = document.getElementById(wwid) ; 
 				console.log("Pivot ele inner" + pivotEle.innerHTML) ;
 				pivotEle.innerText = pivotEle.innerText.replace("`", "") ; // remove that pesky character!
 				const currentWords = pivotEle.parentElement ;
@@ -812,9 +585,9 @@ XXXXXXXX
 								
 											
 				currentSpeakerEle.insertAdjacentHTML("afterEnd", newTs1AndWords) ;
-				const newWords = document.getElementById(wordsId) ; // hinton $("#" + wordsId)  ;
+				const newWords = document.getElementById(wordsId) ; 
 
-				const oldContentList = currentWords.children ; // hinton contents() ;
+				const oldContentList = currentWords.children ;
 				var foundStart = false ;
 				let elesToMove = [] ;
 				for (let i=0;i<oldContentList.length;i++) {
@@ -841,11 +614,7 @@ XXXXXXXX
 			if (c == "spkName") continue ;
 			if (c.indexOf("spk") == 0) return c ;
 		}
-		/* HINTON
-		const classList = ele.attr('class').split(/\s+/) ;
-		for (let i=0;i<classList.length;i++)
-			if (classList[i].indexOf("spk") == 0) return classList[i] ;
-			*/
+
 		return "spkDunno" ;
 	}	
 
@@ -956,7 +725,6 @@ XXXXXXXX
 					// console.log("  word " + wid) ;
 					
 				} ;
-				//chunk.startms = chunkStartTime ; dont use this anymore hinton
 				chunk.content = words ;
 				chunks.push(chunk) ;
 			} ;
@@ -965,8 +733,6 @@ XXXXXXXX
 		blob.transcript = {chunks: chunks} ;
 		console.log("saving blob " + JSON.stringify(blob)) ;
 		// nb - we NEVER save or send  the sessionId, deliveryObject, seq and history props - server manages this!
-
-
 		
 		// off to server !
 
@@ -1003,37 +769,6 @@ XXXXXXXX
 													"&sessionId=" + sessionId + "&nonce=" +(new Date())) ;
 		const ts = await resp.json() ;
 		renderTranscript(ts) ;
-	
-		/* fail
-		const req = new Request("/doc/transcriptJSON?id=" + transcriptId + "&nonce=" +(new Date())) ;
-		fetch(req)
-			.then((response) => {
-				if (response.status === 200) return response.json ;
-				else throw new Error("Error getting transcriptId " + transcriptId) ;
-			})
-			.then((responseJSON) => {
-				console.log("GOT RJ=" + responseJSON) ;
-				renderTranscript(responseJSON) ;
-			})
-			.catch ((err) => {
-				console.error("Error2 getting transcriptId " + transcriptId + " err: " + err) ;
-			}) ;
-*/
-			/* hinton
-		$.getJSON('/doc/transcriptJSON?id=' + transcriptId + '&nonce=' +(new Date()))
-			.done(function (jsonStr) {
-				console.log("GOT FEATURES " + jsonStr) ;
-				let json = jsonStr ; //JSON.parse(jsonStr) ;
-				renderTranscript(json) ;
-				
-				// TODO $("#saveStatus").html("" + json.features.length + " features last saved by <I>" + json.uid + "</I> at " + //formatDate(new Date(json.timestamp))) ;
-				
-			})
-			.fail(function( jqxhr, textStatus, error ) {
-					var err = textStatus + ", " + error ;
-					console.log( "Request Failed: " + err) ;
-			}) ;
-			*/
 	} ;
 			
 	
@@ -1104,7 +839,6 @@ XXXXXXXX
 		if (histories) for (let s=0;s<histories.length;s++) {
 			const h = histories[s] ;
 			historyContents =  "<P>" + h + "</P>" + historyContents ;
-			// hinton histEle.prepend("<P>" + new Date(h.timestamp) + " by " + h.user + ": " + h.type) ;
 		}
 		histEle.innerHTML = historyContents ;
 
@@ -1116,26 +850,23 @@ XXXXXXXX
 			const chunk = chunks[c] ;
 			const spkNum = chunk.speaker ;
 			//const startms = chunk.startms ;
-      const startcs = chunk.content[0].s ; // hinton
+      const startcs = chunk.content[0].s ;
 			const spk = "spk" + spkNum ;		
 			s += "<div id='c" + startcs + "' class='chunk'>" +
 						"<div class='speaker " + spk + "'>" +
 							"<div class='spkTime'>" +
 
-
-
 								"<div class='ts'>" + formatTime(startcs) + "</div>" + 								
 								
 								"<div class='verified'><label class='switchSml'>" +
-											"<input type='checkbox' class='verifiedSwitch' title='verified status' " +
-											// HINTON 	"onchange='setSaveTranscriptButton(true)' value='0'" +
+											"<input type='checkbox' class='verifiedSwitch' title='verified status' " +											
 												((chunk.validated > 0) ? " checked='checked'" : "") +	
 												">" +
 											"<span class='sliderSml round'></span></label></div>" +									
 		
-								"<div class='spkName " + spk + "'>" + /* <a href='#' " + onclick='shspkMenu(this)' HINTON ">"*/
+								"<div class='spkName " + spk + "'>" + 
 								lookupSpeaker(spk) +
-								// HINTON "</a>" +
+					
 								"</div>" +											
 							"</div>" +									
 							"<div class='words'>" ;	
@@ -1145,7 +876,7 @@ XXXXXXXX
 				const word = words[w] ;
 				if (!(typeof word.t === 'string')) word.t = "" + word.t ;	// convert numbers to string - makes find/replace easier..
 				wid++ ;
-				//const ele = "<span id='w" + wid + "' class='w1' ondblclick='cw()' onkeyup='kp()' contenteditable='true'>" + 
+				
 				const ele = "<span id='w" + wid + "' class='w1' contenteditable='true'>" + 
 					word.t + "</span>&#8203;" ; // that's a zero-width space
 				const wordObj = {id:wid, s: word.s, e:word, d: word.d} ;
@@ -1153,8 +884,7 @@ XXXXXXXX
 				wordsByTS.push(wordObj) ; // list of start cs for each word, ordered by ts
 				s += ele ;
 			}
-			s += "</div></div></div>" ;
-			// hinton tsEle.append(s) ;		// hinton - ?	
+			s += "</div></div></div>" ;			
 		}
 		tsEle.innerHTML = s ;
 	}
@@ -1163,17 +893,13 @@ XXXXXXXX
 	
     console.log("loadAudio " + interviewId + " sessionId " + sessionId) ;
 
-	//	const audioLocation = "public/audio/mp3/" + transcriptId + ".mp3" ;
 		const audio = "<audio id='audioEle' controls autoplay playsinline=''" + 
-			// hinton ontimeupdate='timeUpdate()' 
 			" style='width:100%'>" +
 			"<source src='/listen/" + sessionId + "' type='audio/mpeg'>" +
 			"Your browser will not play audio" +
 			"</audio>" +
 
 			"<div id='audioDebug' style='margin-top:1em;font-size:60%'></div>" ;
-
-
 			
 		document.getElementById("audioDiv").innerHTML = audio ;
 
@@ -1186,11 +912,6 @@ XXXXXXXX
 		audioEle.currentTime = startSec ;
 		//audioEle.play() ;
 
-		/* hinton $("#audioDiv").append(audio) ;	
-
-		audioEle = $("#audioEle")[0] ;
-		audioDebug = $("#audioDebug")[0] ;			
-		*/
 	}
 	
 	var lastwordsByTSIndex = 0 ;
@@ -1198,14 +919,7 @@ XXXXXXXX
 	var lastMarkedCurrentWordId = null ;
 	
 	function timeUpdate() {
-	
-	//todo - i buggered this I think removing dup timestamp from wordobj?
-	
-		/*if (!audioEle) {
-			audioEle = $("#audioEle")[0] ;
-			audioDebug = $("#audioDebug")[0] ;
-		}*/
-		
+
 		const aTime = audioEle.currentTime ;
 		audioDebug.innerHTML = "current time: " + aTime ;
 	//	console.log("in tupd aTime " + aTime + " lastTime " + lastTime + " lastMarkedCurrentWord " + lastMarkedCurrentWordId)
@@ -1296,15 +1010,6 @@ XXXXXXXX
 			if (syncTranscript) {
 				if (!isInViewport(ele))	ele.scrollIntoView({ behavior: "smooth"}) ;
 			}
-
-			/* hinton 
-			if (lastMarkedCurrentWordId) $("#" + lastMarkedCurrentWordId).removeClass("wCurrent") ;
-				
-			const ele = $("#" + newCurrentWordEleId) ;
-			ele.addClass("wCurrent") ;
-			lastMarkedCurrentWordId = newCurrentWordEleId ;
-			if (syncTranscript) ele.get(0).scrollIntoViewIfNeeded() ;
-			*/
 		}		
 	}
 	
