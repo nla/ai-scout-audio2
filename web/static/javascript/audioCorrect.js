@@ -21,7 +21,47 @@
 	const speakerList = {} ; // {spk1: "Speaker Unknown"} ;
 
 	let undoStack = [] ;
+	let undoPointer = 0 ;
+
+
+	function addUndo(entry) {
+
+		undoStack.push(entry) ;
+		undoPointer = undoStack.length ;
+		showUndoRedo() ;
+	}
 	
+	function showUndoRedo() {
+
+		let lastUndoableAction = document.getElementById("lastUndoableAction") ;
+		lastUndoableAction.innerHTML = (undoPointer > 0) ? renderUndoRedoAction(undoStack[undoPointer - 1]) : " - " ;
+
+		let nextRedoableAction = document.getElementById("nextRedoableAction") ;
+		nextRedoableAction.innerHTML = ((undoPointer >= 0) && (undoPointer < undoStack.length))	?
+				renderUndoRedoAction(undoStack[undoPointer]) : " - " ;
+
+	}
+
+	function renderUndoRedoAction(action) {
+
+		switch (action.action) {
+			case "replaceText":			return "Replaced word <B>" + action.origText + "</B> to <B>" + action.newText + "</B>" ;
+
+			case "replaceAllText":	return "Replaced " + action.list.length + " words starting with <B>" + action.findText + "</B> to <B>" + action.replaceText + "</B>" ;
+
+			case "wordChange":			return "Changed word <B>" + action.origText + "</B> to <B>" + action.newText + "</B>" ;
+
+			case	"replaceSpeakerName": return "Changed speaker name from <B>" + action.oldName + "</B> to <B>" + action.newName + "</B>" ;
+
+			case	"replaceSpeaker":	return "Changed speaker from <B>" + action.oldSpeakerName + "</B> to <B>" + action.newSpeakerName +
+																		 "</B> " + action.eleList.length + " time(s)" ;
+
+			default: 			return "Unknown action: " + JSON.stringify(action) ;
+		}
+
+
+	}
+
 	function lookupSpeaker(spk) {
 	
 		return speakerList[spk] ;		
@@ -51,16 +91,12 @@
 
 		unsavedChanges = enabled ;
 	}
-	
-	
+		
 	function showHowTo() {
 
 		document.getElementById("howTo").showModal() ;
 		console.log(new Error("showHowTo called").stack) ;
 	}
-
-
-
 	
 	function confirmExit() {
 		if (unsavedChanges) {
@@ -69,10 +105,8 @@
 	}
 
 
-
 	let findStartingWord = 0 ;
 	let foundIndex = -1 ;
-
 
 	window.addEventListener("load", async (event) => {
 		console.log("load event running") ;
@@ -95,10 +129,6 @@
 		document.getElementById("closePopupSpk").addEventListener("click", function() {
 			document.getElementById("popupSpk").close() ;
 		}) ;
-
-		
-
-		
 
 		document.getElementById("SyncTranscript").addEventListener("change", (event) => {
 
@@ -150,6 +180,15 @@
 			else {
 				newText = (e.t == findText) ? newVal : (newVal + e.t.substring(findText.length)) ;
 			}
+			addUndo({
+				action:"replaceText",
+				index: foundIndex,
+				origText:ele.innerText,
+				previousEdit: e.hasOwnProperty("e") ? e.e : null,
+				newText: newText
+			}) ;
+		
+
 			ele.innerText = newText ;
 			idToCword[foundIndex].e.e = newText ;
 
@@ -181,6 +220,13 @@
 				if (!confirm("Are you sure you want to replace all occurrences of " + findText + " with nothing?")) return ;
 			}
 
+			let undoAction = {
+				action:"replaceAllText",
+				findText: findText,
+				replaceText: newVal,
+				list: []
+			} ;
+
  			console.log("in replaceAll ")  ;
 			for (let i = 1;i<idToCword.length;i++) {
 				let e = idToCword[i].e ;
@@ -200,6 +246,13 @@
 
 				let ele = document.getElementById("w" + idToCword[i].id) ;
 
+				undoAction.list.push({
+					index: i,
+					origText:ele.innerText,
+					previousEdit: e.hasOwnProperty("e") ? e.e : null,
+					newText: newText
+				}) ;
+
 				ele.innerText = newText ;
 				idToCword[i].e.e = newText ;
 
@@ -207,6 +260,7 @@
 			}
 			if (foundCount == 0) showSnackBar(findText + " not found") ;
 			else {
+				addUndo(undoAction) ;
 				showSnackBar("" + foundCount + " occurrence(s) of " + findText + " changed to " + newVal) ;
 				setSaveTranscriptButton(true) ;
 			}
@@ -324,12 +378,26 @@
 				const wid = e.id.substring(1) ;	// strip the w
 				const wordObj = idToCword[wid] ;
 				console.log("kp wid=" + wid + " contents=" + e.textContent + " wo=" + JSON.stringify(wordObj)) ;
+
+				let currentUndoAction =  null ;
+				if (undoPointer) {
+					let t = undoStack[undoPointer - 1] ;
+					if ((t.action == 'wordChange') && (t.index == wid)) // another edit on same word
+						currentUndoAction = t ; 
+				}
+
 				if (e.textContent == wordObj.e.t) {	// not innerHTML!
 					// no change - was it diff before?
 					console.log(" no change and e is " + wordObj.e.e)
 					if (wordObj.e.e) {	// yes..
 						document.getElementById("w" + wid).classList.remove("wChanged") ;
-						delete(wordObj.e.e) ;				
+						delete(wordObj.e.e) ;	
+						
+						if (currentUndoAction) {	// remove undo action
+							undoPointer-- ;
+							undoStack.pop() ; 
+							showUndoRedo() ; // update display
+						}
 					}
 				}
 				else {	// different from orig value
@@ -337,8 +405,24 @@
 					// hiinton if (!wordObj.e.e) $("#w" + wid).addClass("wChanged") ;	// first change
 					if (!wordObj.e.e) document.getElementById("w" + wid).classList.add("wChanged") ;	// first change
 
+					if (currentUndoAction) {
+						currentUndoAction.newText = e.textContent ;
+						showUndoRedo() ; // update display
+					}
+					else {
+						addUndo({
+							action:"wordChange",
+							index: wid,
+							origText: wordObj.e.t,
+							previousEdit: wordObj.e.hasOwnProperty("e") ? wordObj.e.e : null,
+							newText: e.textContent
+						}) ;
+					}					
+						
 					wordObj.e.e = e.textContent ;	
 					setSaveTranscriptButton(true) ;
+
+
 				}
 				ev.stopPropagation() ;
 
@@ -480,15 +564,34 @@
 			if (existingName != editedName) {
 				console.log("DIFF NAME editedName="+editedName +  " was " + existingName) ;
 				speakerList["spk" + i] = editedName ;
+
+				let undoAction = {
+					action:"replaceSpeakerName",
+					oldName: existingName,
+					newName: editedName,
+					eleList: []
+				} ;
+
 				for (let se of document.querySelectorAll(".spkName.spk" + i )) {
 					se.innerText = editedName ;
+					undoAction.eleList.push(se) ;
 				}
+				if (undoAction.eleList) addUndo(undoAction) ;
 			}			
 		}		
 		
 		// ok, any new speaker name?
-		if (newName.length > 0) {			
+		if (newName.length > 0) {	
+			
 			const spkKey = "spk" + maxSpk ;
+
+			addUndo( {
+				action:"newSpeaker",
+				name: newName,
+				spkKey: spkKey,
+				maxSpk: maxSpk
+			}) ;
+
 			speakerList[spkKey] = newName ;
 			maxSpk++ ;
 		}	
@@ -497,10 +600,22 @@
 		const changeAll = document.getElementById("spkall").checked ;
 		console.log("changeAll="+ changeAll + ", newSpeakerName="+newSpeakerName) ;
 		
+
+		let undoAction = {
+			action:"replaceSpeaker",
+			newSpeakerName: newSpeakerName,
+			newSpeakerNum: spkNum,
+			oldSpeakerName: speakerList["spk" + oldSpkNum],
+			oldSpeakerNum: oldSpkNum,
+			eleList: []
+		} 
+
 		
 		if (changeAll) {		
 			
 			for (let se of document.querySelectorAll(".spkName.spk" + oldSpkNum )) {
+				undoAction.eleList.push(se) ;
+
 				se.innerText = newSpeakerName ;
 				se.classList.remove("spk" + oldSpkNum) ;
 				se.classList.add("spk" + spkNum) ;
@@ -511,15 +626,16 @@
 		}
 		else {	// just this ele
 		
+			undoAction.eleList.push(currentSpeakerEleForChange) ;
+
 			currentSpeakerEleForChange.innerText = newSpeakerName ;
 			currentSpeakerEleForChange.classList.remove("spk" + oldSpkNum) ;
 			currentSpeakerEleForChange.classList.add("spk" + spkNum) ;
 			let p = currentSpeakerEleForChange.parentElement.parentElement ;
 			p.classList.remove("spk" + oldSpkNum) ;
 			p.classList.add("spk" + spkNum) ;
-
-
 		}
+		if (undoAction.eleList) addUndo(undoAction) ;
 
 		console.log("done") ;	
 		document.getElementById("popupSpk").close() ;
