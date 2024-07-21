@@ -1236,6 +1236,8 @@ module.exports = {
     if (!interview) return ;
     if (interview.mostSimilar) return ;
 
+    if (!interview.embedding) return ;
+    console.log("gms embedding=" + interview.embedding.length) ;
 
     let selectData = 
       "wt=json&rows=6" +

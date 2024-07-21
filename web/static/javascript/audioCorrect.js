@@ -23,6 +23,8 @@
 	let undoStack = [] ;
 	let undoPointer = 0 ;
 
+  let undoButton = null ;
+	let redoButton = null ;
 
 	function addUndo(entry) {
 
@@ -34,12 +36,24 @@
 	function showUndoRedo() {
 
 		let lastUndoableAction = document.getElementById("lastUndoableAction") ;
-		lastUndoableAction.innerHTML = (undoPointer > 0) ? renderUndoRedoAction(undoStack[undoPointer - 1]) : " - " ;
+		if (undoPointer > 0) {
+			lastUndoableAction.innerHTML = renderUndoRedoAction(undoStack[undoPointer - 1]) ;
+			undoButton.disabled = false ;
+		}
+		else {
+			lastUndoableAction.innerHTML = "[ nothing to undo ]" ;
+			undoButton.disabled = true ;
+		}
 
 		let nextRedoableAction = document.getElementById("nextRedoableAction") ;
-		nextRedoableAction.innerHTML = ((undoPointer >= 0) && (undoPointer < undoStack.length))	?
-				renderUndoRedoAction(undoStack[undoPointer]) : " - " ;
-
+		if ((undoPointer >= 0) && (undoPointer < undoStack.length)) {
+			nextRedoableAction.innerHTML = 	renderUndoRedoAction(undoStack[undoPointer]) ;
+			redoButton.disabled = false ;
+		}
+		else {
+			nextRedoableAction.innerHTML = "[ nothing to undo ]" ;
+			redoButton.disabled = false ;
+		}
 	}
 
 	function renderUndoRedoAction(action) {
@@ -51,16 +65,198 @@
 
 			case "wordChange":			return "Changed word <B>" + action.origText + "</B> to <B>" + action.newText + "</B>" ;
 
-			case	"replaceSpeakerName": return "Changed speaker name from <B>" + action.oldName + "</B> to <B>" + action.newName + "</B>" ;
+			//case	"replaceSpeakerName": return "Changed speaker name from <B>" + action.oldName + "</B> to <B>" + action.newName + "</B>" ;
 
-			case	"replaceSpeaker":	return "Changed speaker from <B>" + action.oldSpeakerName + "</B> to <B>" + action.newSpeakerName +
-																		 "</B> " + action.eleList.length + " time(s)" ;
+			case	"replaceSpeaker":	
+			{
+				let descr = "" ;
 
-			default: 			return "Unknown action: " + JSON.stringify(action) ;
+				if (action.newSpeakerAction) descr = "New speaker <B>" + action.newSpeakerAction.name + "</B>; " ;
+
+				if (action.replaceSpeakerNameAction) descr += " Changed speaker from <B>" + action.replaceSpeakerNameAction.oldName + "</B> to <B>" +
+							action.replaceSpeakerNameAction.newName + "</B>; " ;
+
+				if (action.eleList) descr += " Speaker Changed " +  + action.eleList.length + " time(s)" ;
+					
+				return descr ;
+			}
+
+
+		//	case "newSpeaker":			return "Add speaker <B>" + action.name + "</B>" ;																	 	
+
+			default: 								return "Unknown action: " + JSON.stringify(action) ;
+		}
+	}
+
+
+	function redo() {
+
+		if (undoPointer < 0) return ;
+		if (undoPointer >= undoStack.length) return ;
+
+		let action = undoStack[undoPointer] ;
+console.log("REDO: " + JSON.stringify(action));
+		switch (action.action) {
+			case "replaceText":	
+			{
+				let wordObj = idToCword[action.index] ;
+				let ele = document.getElementById("w" + action.index) ;
+				if (!ele.classList.contains("wChanged")) 	ele.classList.add("wChanged") ;	// changed now
+				wordObj.e.e = action.newText ;
+				ele.innerText = action.newText ;
+				ele.scrollIntoView({ behavior: "smooth"}) 
+				break ;
+			}
+
+			case "replaceAllText":	
+			{
+				for (let l of action.list) {
+					let wordObj = idToCword[l.index] ;
+					let ele = document.getElementById("w" + l.index) ;
+					if (!ele.classList.contains("wChanged")) 	ele.classList.add("wChanged") ;	// changed now
+					wordObj.e.e = l.newText ;
+					ele.innerText = l.newText ;
+					ele.scrollIntoView({ behavior: "smooth"}) 
+				}
+				break ;
+			}
+
+			case "wordChange":	
+			{
+				let wordObj = idToCword[action.index] ;
+				let ele = document.getElementById("w" + action.index) ;
+				if (!ele.classList.contains("wChanged")) 	ele.classList.add("wChanged") ;	// changed now
+				wordObj.e.e = action.newText ;
+				ele.innerText = action.newText ;
+				ele.scrollIntoView({ behavior: "smooth"}) 
+				break ;
+			}
+
+			case	"replaceSpeaker":	
+			{
+				if (action.newSpeakerAction) {
+					speakerList[action.newSpeakerAction.spkKey] = action.newSpeakerAction.name ;
+					maxSpk = action.newSpeakerAction.maxSpk + 1 ;
+				}
+
+				if (action.replaceSpeakerNameAction) {
+					speakerList[action.replaceSpeakerNameAction.speakerListIndex] = action.replaceSpeakerNameAction.newName ;
+					for (l of action.replaceSpeakerNameAction.eleList)
+							l.innerText = action.replaceSpeakerNameAction.newName ;							
+				}
+
+				for (let l of action.eleList) {
+					l.classList.remove("spk" + action.oldSpeakerNum) ;
+					l.classList.add("spk" + action.newSpeakerNum) ;
+					let p = l.parentElement.parentElement ;
+					p.classList.remove("spk" + action.oldSpeakerNum) ;
+					p.classList.add("spk" + action.newSpeakerNum) ;
+					l.innerText = action.newSpeakerName ;
+				}
+				break ;
+			}
+
+			default: 
+				alert("Unknown action: " + JSON.stringify(action)) ;
+				return ;
 		}
 
+		// if we did an redo
+		undoPointer++ ;
+
+		showUndoRedo() ;
 
 	}
+	function undo() {
+
+		if (undoPointer <= 0) return ;
+		let action = undoStack[undoPointer - 1] ;
+		switch (action.action) {
+			case "replaceText":	
+			{
+				let wordObj = idToCword[action.index] ;
+				let ele = document.getElementById("w" + action.index) ;
+				if (!action.previousEdit) { // only change
+					ele.classList.remove("wChanged") ;	// only change					
+					delete(wordObj.e.e) ;	
+				}
+				else wordObj.e.e = action.previousEdit ;
+				
+				ele.innerText = action.origText ;
+				ele.scrollIntoView({ behavior: "smooth"}) 
+				break ;
+			}
+
+			case "replaceAllText":	
+			{
+				for (let l of action.list) {
+					let wordObj = idToCword[l.index] ;
+					let ele = document.getElementById("w" + l.index) ;
+					if (!l.previousEdit) { // only change
+						ele.classList.remove("wChanged") ;	// only change					
+						delete(wordObj.e.e) ;	
+					}
+					else wordObj.e.e = l.previousEdit ;				
+					ele.innerText = l.origText ;
+					ele.scrollIntoView({ behavior: "smooth"}) 
+				}
+				break ;
+			}
+
+			case "wordChange":	
+			{
+				let wordObj = idToCword[action.index] ;
+				let ele = document.getElementById("w" + action.index) ;
+				if (!action.previousEdit) { // only change
+					ele.classList.remove("wChanged") ;	// only change					
+					delete(wordObj.e.e) ;	
+				}
+				else wordObj.e.e = action.previousEdit ;
+				
+				ele.innerText = action.origText ;
+				ele.scrollIntoView({ behavior: "smooth"}) 
+				break ;
+			}
+
+
+			case	"replaceSpeaker":	
+			{
+
+				if (action.newSpeakerAction) {
+					delete speakerList[action.newSpeakerAction.spkKey] ;
+					maxSpk = action.newSpeakerAction.maxSpk ;
+				}
+
+				if (action.replaceSpeakerNameAction) {
+					speakerList[action.replaceSpeakerNameAction.speakerListIndex] = action.replaceSpeakerNameAction.oldName ;
+					for (l of action.replaceSpeakerNameAction.eleList)
+							l.innerText = action.replaceSpeakerNameAction.oldName ;	
+				}
+
+				for (let l of action.eleList) {
+					l.classList.add("spk" + action.oldSpeakerNum) ;
+					l.classList.remove("spk" + action.newSpeakerNum) ;
+					let p = l.parentElement.parentElement ;
+					p.classList.add("spk" + action.oldSpeakerNum) ;
+					p.classList.remove("spk" + action.newSpeakerNum) ;
+					l.innerText = action.oldSpeakerName ;
+				}
+				break ;
+			}
+
+			default: 
+				alert("Unknown action: " + JSON.stringify(action)) ;
+				return ;
+		}
+
+		// if we did an undo...
+		undoPointer-- ;
+		//undoStack.pop() ;
+
+		showUndoRedo() ;
+	}
+
+
 
 	function lookupSpeaker(spk) {
 	
@@ -105,6 +301,7 @@
 	}
 
 
+
 	let findStartingWord = 0 ;
 	let foundIndex = -1 ;
 
@@ -119,6 +316,14 @@
 		window.onbeforeunload = confirmExit ;
 
 		setSaveTranscriptButton(false) ;
+
+		undoButton = document.getElementById("undo") ;
+		undoButton.disabled = true ;
+		undoButton.addEventListener("click", undo) ;
+
+		redoButton = document.getElementById("redo") ;
+		redoButton.disabled = true ;
+		redoButton.addEventListener("click", redo) ;
 
 		document.getElementById("showHowTo").addEventListener("click", showHowTo) ;
 
@@ -191,6 +396,7 @@
 
 			ele.innerText = newText ;
 			idToCword[foundIndex].e.e = newText ;
+			if (!ele.classList.contains("wChanged")) ele.classList.add("wChanged") ;
 
 
 		//	let ele = document.getElementById("w" + idToCword[foundIndex].id) ;
@@ -255,6 +461,7 @@
 
 				ele.innerText = newText ;
 				idToCword[i].e.e = newText ;
+				if (!ele.classList.contains("wChanged")) ele.classList.add("wChanged") ;
 
 				foundCount++ ;
 			}
@@ -557,6 +764,7 @@
 			}
 		}
 
+		let replaceSpeakerNameAction = null ;
 		// have any of the names changed?
 		for (let i=0;i<maxSpk;i++) { // start at 2 coz #1 is unknown speaker}
 			const existingName = lookupSpeaker("spk" + i) ;
@@ -565,32 +773,33 @@
 				console.log("DIFF NAME editedName="+editedName +  " was " + existingName) ;
 				speakerList["spk" + i] = editedName ;
 
-				let undoAction = {
+				replaceSpeakerNameAction = {
 					action:"replaceSpeakerName",
 					oldName: existingName,
 					newName: editedName,
+					speakerListIndex: "spk" + i,
 					eleList: []
 				} ;
 
 				for (let se of document.querySelectorAll(".spkName.spk" + i )) {
 					se.innerText = editedName ;
-					undoAction.eleList.push(se) ;
+					replaceSpeakerNameAction.eleList.push(se) ;
 				}
-				if (undoAction.eleList) addUndo(undoAction) ;
 			}			
 		}		
 		
+		let newSpeakerAction = null ;
 		// ok, any new speaker name?
 		if (newName.length > 0) {	
 			
 			const spkKey = "spk" + maxSpk ;
 
-			addUndo( {
+			newSpeakerAction =  {
 				action:"newSpeaker",
 				name: newName,
 				spkKey: spkKey,
 				maxSpk: maxSpk
-			}) ;
+			} ;
 
 			speakerList[spkKey] = newName ;
 			maxSpk++ ;
@@ -603,9 +812,11 @@
 
 		let undoAction = {
 			action:"replaceSpeaker",
+			newSpeakerAction: newSpeakerAction,
+			replaceSpeakerNameAction: replaceSpeakerNameAction,
 			newSpeakerName: newSpeakerName,
 			newSpeakerNum: spkNum,
-			oldSpeakerName: speakerList["spk" + oldSpkNum],
+			oldSpeakerName: (replaceSpeakerNameAction) ? replaceSpeakerNameAction.oldName : speakerList["spk" + oldSpkNum],
 			oldSpeakerNum: oldSpkNum,
 			eleList: []
 		} 
@@ -635,7 +846,8 @@
 			p.classList.remove("spk" + oldSpkNum) ;
 			p.classList.add("spk" + spkNum) ;
 		}
-		if (undoAction.eleList) addUndo(undoAction) ;
+
+		if (undoAction.eleList || newSpeakerAction || replaceSpeakerNameAction) addUndo(undoAction) ;
 
 		console.log("done") ;	
 		document.getElementById("popupSpk").close() ;

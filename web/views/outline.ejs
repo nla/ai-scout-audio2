@@ -56,17 +56,19 @@
             </div -->
 
             <div style='margin-left:1em;border:1px solid #dddddd;padding:8px;font-size:90%'>
-            <B>Possibly similar interviews</B>
-            <P>      
-              <OL>
-              <% for (let sim of interview.mostSimilar) { %>
-                <LI>
-                  <a href="/doc/outline?id=<%=escape(sim.interviewId)%>" target="_blank"> <%- sim.title %></a> 
-                    <span style="font-size:80%;color:#888888">[ <%- Number(sim.score).toFixed(4) %> ]</span>
-                </LI>         
-              <% } %>
-              </OL>
-            </P>
+            <% if (interview.mostSimilar) { %>  
+              <B>Possibly similar interviews</B>
+              <P>      
+                <OL>
+                <% for (let sim of interview.mostSimilar) { %>
+                  <LI>
+                    <a href="/doc/outline?id=<%=escape(sim.interviewId)%>" target="_blank"> <%- sim.title %></a> 
+                      <span style="font-size:80%;color:#888888">[ <%- Number(sim.score).toFixed(4) %> ]</span>
+                  </LI>         
+                <% } %>
+                </OL>
+              </P>
+            <% } %>
             </div>
           </div>  
          <!-- <div><%- interview.summary.replaceAll("||", " ") %></div>      -->
