@@ -463,14 +463,14 @@ async function getSummary(chunk, bottomLevel, session, seq) {
   if (chunk.words < targetSummaryLength) targetSummaryLength = chunk.words ;
 
   let promptInstructions = null ;
-  if (bottomLevel) promptInstructions =  "Summarise the provided transcript of an audio recording " +
-    ((seq == 0) ? ("with the title: \"" + session.title + "\" ") : "") +
+  if (bottomLevel) promptInstructions =  "Summarise the provided transcript of an interview " + // audio recording " +
+    ((seq < 9999) ? ("with the title: \"" + session.title + "\" ") : "") +  // was seq == 0
     "in less than " + targetSummaryLength + " words. " +
     "Base the summary only on the provided transcript text.  Never provide a preamble or a postscript - " +
     "just summarise the transcript without further commentary, producing a shorter version of the " +
     "provided text." ;
-  else promptInstructions =  "Further summarise the provided summary of an audio recording transcript " +
-    ((seq == 0) ? ("with the title: \"" + session.title + "\" ") : "") +
+  else promptInstructions =  "Further summarise the provided summary of an interview " + // audio recording transcript " +
+    ((seq < 9999) ? ("with the title: \"" + session.title + "\" ") : "") +  // was seq == 0
     "in less than " + targetSummaryLength + " words. " +
     "Base the summary only on the provided text.  Never provide a preamble or a postscript - " +
     "just summarise the content without further commentary, producing a shorter version of the " +
