@@ -83,7 +83,10 @@ tr {vertical-align: top}
 	border-bottom:3px solid green ;	
 }
 .wChanged {
-	background-color:#aaffaa ;	
+	background-color:#aaffaa !important;
+}
+.wVerified {
+	background-color:#ccffcc !important;
 }
 
 tt {padding:2px;border:1px solid #888888}
@@ -230,3 +233,16 @@ input:checked + .sliderSml:before {
 
 .trspeaker {font-weight:bold;width:10em;float:left}
 .trspoken {margin-left:11em}
+
+
+
+.cc10 {background-color:#ffffff}
+.cc9 {background-color:#fffff8}
+.cc8 {background-color:#fffff4}
+.cc7 {background-color:#ffffee}
+.cc6 {background-color:#ffff88}
+.cc5 {background-color:#ffff33}
+.cc4 {background-color:#ffcc55}
+.cc3 {background-color:#ffbb11}
+.cc2 {background-color:#ffaa11}
+.cc1 {background-color:#ff8800}

@@ -459,7 +459,7 @@ let x = 0 ;
 
 async function getSummary(chunk, bottomLevel, session, seq) { 
 
-  let targetSummaryLength = 300 ;
+  let targetSummaryLength = 200 ;
   if (chunk.words < targetSummaryLength) targetSummaryLength = chunk.words ;
 
   let promptInstructions = null ;
@@ -905,7 +905,7 @@ async function createInterviewSummaryFromSessionSummaries(iv) {
   
     let promptInstructions = "Summaries of various individual sessions of an audio recording " +
       "with the title: \"" + iv.title + "\" will be provided by the user.  Please produce a consolidated summary " +
-      "of less than 300 words. Never provide a preamble or a postscript - " +
+      "of less than 200 words. Never provide a preamble or a postscript - " +
       "just summarise the content without further commentary, producing a shorter version of the " +
       "provided text." ;
 
@@ -927,7 +927,7 @@ async function createInterviewSummaryFromSessionSummaries(iv) {
           "use_beam_search": false,              
           "temperature":0.0,
           "n":1,
-          "max_tokens": Math.ceil(300 * 2 * 1.2),
+          "max_tokens": Math.ceil(200 * 2 * 1.2),
           "stream":false,
           skip_special_tokens: false,                         // skip and stop are attempts to stop startling model from seeming to loop
           stop: ["<|im_end|>"]                                  // open-hermes-neural-chat blend emits this

@@ -10,6 +10,7 @@ const FormData = require('form-data') ; // for uploadAll
 const axios = require('axios') ;
 const formidable = require('formidable') ;
 const fs = require('fs') ;
+const readline = require('readline') ;
 const { XMLParser, XMLBuilder, XMLValidator} = require("fast-xml-parser") ;
 
 
@@ -23,12 +24,80 @@ function init(appConfigParm) {
   router.post('/',		    async (req, res) => { uploadPost(req, res) }) ;
   router.get ('/all',	    async (req, res) => { uploadAll(req, res) }) ;
   router.get ('/createInterviewSummary',	    async (req, res) => { createInterviewSummary(req, res) }) ;
-  router.get ('/recreateInterviewSummary',	    async (req, res) => { recreateInterviewSummary(req, res) }) ;
+  router.get ('/recreateInterviewSummary',	  async (req, res) => { recreateInterviewSummary(req, res) }) ;
   router.get ('/addDetailedLinksToInterviewAndSessionSummaries',	    async (req, res) => { addDetailedLinksToInterviewAndSessionSummaries(req, res) }) ;
   router.get ('/update',  async (req, res) => { updateForm(req, res) }) ; // just set and title
   router.post('/update',  async (req, res) => { updatePost(req, res) }) ; // just set and title
+  router.get('/buildVocabList',               async (req, res) => { buildVocabList(req, res) }) ; // one off to build word freq for scoring
   return router ;  
 }
+
+
+async function buildVocabList(req,res) {  // no, nothin to do with uploads - just here coz Im too lazy  to create an admin route
+
+  // read file en_full.txt in data (from https://github.com/hermitdave/FrequencyWords/tree/master/content/2018/en)
+  // keep everything with 20 of more
+  // discard everything with '
+  // take logs of score (first entry will be highest, lowest is assumed to be 1 (more)) and scale logs: 0..100
+  // write to data/workFreq.json
+
+
+  let freqList = {} ;
+  const fileStream = fs.createReadStream("data/en_full.txt") ;
+
+  const rl = readline.createInterface({
+    input: fileStream,
+    crlfDelay: Infinity
+  }) ;
+
+  let added = 0 ;
+  let max = 0 ;
+  let scale = 0 ;
+  for await (const line of rl) {
+    let parts = line.split(" ") ;
+    if (parts.length != 2) break ;
+    if (parts[0].indexOf("'") >= 0) continue ;
+    if (parts[1] < 20) break ;
+    if (!added) { // first line
+      max = parts[1] ;
+      let logMax = Math.log10(max) ;
+      scale = 100 / logMax ;
+      console.log("Max from " + line + "  -- scale is " + scale) ;
+    }
+    let i = parts[0].indexOf('.') ;
+    if (i == 0) continue ;
+    if (i > 0) parts[0] = parts[0].substring(0, i) ; // remove stuff after .
+    if (isNaN(parts[0])) {  // dont care for numbers
+      let freq = Math.round(Math.log10(parts[1]) * scale) ;
+      if (!freqList[parts[0]]) {
+        freqList[parts[0]] = freq ;
+        added++ ;
+      }
+    }
+  }
+  await fs.promises.writeFile("static/javascript/freqList.js", 
+      "let freqList = " + JSON.stringify(freqList) + "; ") ;
+  res.write("added " + added + " scale " + scale) ;
+  res.end() ;
+}
+/* move to client side
+let freqList = null ;
+
+async function getFreqList() {
+
+  if (!freqList) {
+    try {
+      freqList = JSON.parse(await fs.promises.readFile("data/freqList.json", "utf8")) ;
+    }
+    catch (e) {
+      console.log("cant read word freq list:" + e) ;
+      console.log(e.stack) ;
+    }
+  }
+  return freqList ;
+}
+*/
+
 
 async function createInterviewSummary(req, res) {
 
@@ -139,6 +208,8 @@ async function recreateInterviewSummary(req, res) { // one off hack
   res.end() ;
 }
 
+const AUGMENT_TEI_WITH_CONFIDENCE = true ;
+
 async function uploadAll(req, res) {
 
    const sourceDir = "/home/kfitch/audio/francis-nla-oral-history/uat-transcripts-4k" ;
@@ -152,9 +223,27 @@ async function uploadAll(req, res) {
   let kkk = 0 ;
   for (let dir of dirs) {
 
-    if ((dir == 'nla.obj-195963802') || (dir == 'nla.obj-195963802')) ; //nla.obj-195963802
+ /*   if ((dir ==  "nla.obj-220466827") || // Brandy     ((dir == 'nla.obj-195963802') || (dir == 'nla.obj-195963802')) ; //nla.obj-195963802
+        (dir ==  "nla.obj-218166365")) ; // egan
     else continue ;
+*/
+/*
+    if ((dir ==  "nla.obj-215073920") || // quist     
+        (dir == "nla.obj-220251147") || // Nayinggul  -- redo
+        (dir == "nla.obj-219901040") || // Jackson
+        (dir == "nla.obj-219841931") || // Hammersley
+        (dir == "nla.obj-207094179") || // Leong
 
+        (dir == "nla.obj-215788512") || // Hanke
+        (dir == "nla.obj-220469166") || // McLennan
+        (dir == "nla.obj-220071333") || // Simpson
+
+        (dir ==  "nla.obj-218270215")) ; // penhall  	
+        */
+      //if (dir == "nla.obj-220251147") ; // Nayinggul  -- redo
+      if (dir == "nla.obj-216174421") ; // Ellen Buyers
+    else continue ;
+     
     //  if (dir != 'nla.obj-206971479') continue ;
     //if (dir != 'nla.obj-193368612') continue ; // only 1 session
     //if (dir != 'nla.obj-192214659') continue ; // DEBUG 2 sessions no date
@@ -225,11 +314,17 @@ async function uploadAll(req, res) {
           continue ;
         }        
 
+        let teiFilename = fullDir + "/" + f ;
+
+        let filenameToIngest = (AUGMENT_TEI_WITH_CONFIDENCE) 
+                                  ? await augmentTEIwithConfidence(res, fullDir, f) : teiFilename ;
+       // if (filenameToIngest) return ; // debug
         console.log("Attempting to load interview " + f + "\t\t as: " + interviewId) ;
         const form = new FormData();
         form.append('collection', 'Other') ;
         form.append('replace', 'n') ;
-        form.append('uploadedFile', fs.createReadStream(fullDir + "/" + f), f) ;
+        // before augmentation: form.append('uploadedFile', fs.createReadStream(fullDir + "/" + f), f) ;
+        form.append('uploadedFile', fs.createReadStream(filenameToIngest), f) ;
 
         // NOTE: need env to stop axios worrying about self-signed cert - before running node:
         // export NODE_TLS_REJECT_UNAUTHORIZED='0'
@@ -241,18 +336,208 @@ async function uploadAll(req, res) {
         });
         res.write(" upload resp:" + response.status + "\n") ;
 
+        if (AUGMENT_TEI_WITH_CONFIDENCE &&  (teiFilename != filenameToIngest)) {
+          console.log("about to delete " + filenameToIngest) ;
+          fs.unlinkSync(filenameToIngest) ;  
+        }
         console.log("Got UPLOAD resp " + response.status) ;
         if (response.status == 200) successes++ ;  
       }
       catch (err1) {
         res.write("FAILED to load " + f + " err:" + err1) ;
         console.log("FAILED to load " + f + " err:" + err1) ;
+        console.log(err1.stack) ;
       }
     }
     if (!any) res.write("***No tc xml in dir " + dir + "\n") ;
   }
   res.write("\nalreadyLoaded " + alreadyLoaded + ", attempts " + attempts + ", successes " + successes) ;
   res.end() ;
+}
+
+// experiment 26Jul - lets add score/confidence into the tei so we can store it in the json to help QAers looking at transcript.
+
+async function augmentTEIwithConfidence(res, fullDir, teiFilename) {
+
+    /*  read and copy lines to temp output
+        looking for lines denoting session like <div1 id="nla.oh-6545-0046-0001_nla.obj-220466834" n="1" type="Session">
+        The last part nla.obj-220466834 is name of subdir we hope to find which will contain nla.obj-220466834.json
+        We read json:
+              {"segments": [{"start": 1.038, "end": 10.543, 
+                            "text": " This is an interview with Larry ...",
+                            "words": [
+                               {"word": "This", "start": 1.038, "end": 1.258, "score": 0.635},
+                               {"word": "is", "start": 1.598, "end": 1.718, "score": 0.758}, 
+        
+        and build a list of all words
+        As we read through tei
+              <seg id="T0">
+                <timeRange from="00:00:01:03" to="00:00:01:25"/>     
+                <seg>This</seg>
+              </seg>
+              <seg id="T1">
+                <timeRange from="00:00:01:59" to="00:00:01:71"/>
+                <seg>is</seg>
+              </seg>
+
+        we augment the inner seg with a c (confidence) of round(whisperx score * 100) - will be 0..100
+
+          <seg id="T0">
+            <timeRange from="00:00:01:03" to="00:00:01:25"/>     
+            <seg c="64">This</seg>
+          </seg>
+          <seg id="T1">
+            <timeRange from="00:00:01:59" to="00:00:01:71"/>
+            <seg c="76">is</seg>
+          </seg>
+
+      Write out the tei to a tmp place - worrying about cleaning it up later...
+
+      TODO add f=n - some word frequency measure/score, to draw attn to unusual words - some log freq measure, with out-of-vocab words given 1
+
+      */
+
+     
+      console.log("Reading TEI from " + fullDir + "/" + teiFilename) ;
+      try {
+        let teiStr =  fs.readFileSync(fullDir + "/" + teiFilename, 'utf8').toString() ;
+        const parser = new XMLParser({
+          ignoreAttributes: false,
+         // preserveOrder: true,
+          attributeNamePrefix : "@_"
+        }) ;
+    
+        const teiWrapper = parser.parse(teiStr) ;
+        const tei = teiWrapper["TEI.2"] ;
+        if (!tei) console.log("** NO TEI.2 element") ;
+
+ 
+        // div1 are sessions.  If not an array, make it one..
+        div1s =  (tei.text && tei.text.body && tei.text.body.div1) ? tei.text.body.div1 : null ;
+        if (div1s == null) {
+          console.log("No div1s - no sessions") ;
+          return null ;
+        }
+        if (!Array.isArray(div1s)) div1s = [ div1s ] ; // turn into an array...
+    
+        for (let div1 of div1s) { // each session
+    
+          console.log("processing div1: " + JSON.stringify(div1).substring(0, 200) + " ...") ;
+
+          if (!div1.div2) {
+            console.log("No transcript for session " + div1["@_id"]) ;
+            continue ;
+          }
+          let i =  div1["@_id"].indexOf("_") ; // "nla.oh-6134-0000-0001_nla.obj-219135352
+          if (i <= 0) throw new Error("unexpected session ids from div1 id: " +  div1["@_id"]) ;
+
+          let sessionId =  div1["@_id"].substring(i+1) ;
+
+          let sessionJSONfilename = fullDir + "/" + sessionId + "/" + sessionId + ".json" ;
+
+          // json exist?
+
+          if (!fs.existsSync(sessionJSONfilename)) {
+            res.write("Cant find json transcript " + sessionJSONfilename) ;
+            return fullDir + "/" + teiFilename ;
+          }
+
+          // ok, read original (raw) json transcript with score
+         
+
+          let tsj = JSON.parse(await fs.promises.readFile(sessionJSONfilename, "utf8")) ;
+          let wordList = tsj.word_segments ;
+          console.log("from " + sessionJSONfilename + " tsj word segments len=" + wordList.length) ;
+          let wlc = 0 ; // current word
+
+          const div2 = div1.div2 ;
+    
+          console.log("div2 is " + div2)
+          if (div2.sp) {  
+            let sp = div2.sp ;
+            if (!Array.isArray(sp)) sp = [ sp ] ; // turn into an array...
+            console.log("*** 29may sp count is " + sp.length) ;
+    
+            for (let content of sp) {   
+              let p = content.p ;
+              if (p) {
+                let ps = Array.isArray(p) ? p : [p] ;
+                for (let px of ps) {
+                  let segs = px.seg ;
+                  if (segs === undefined) continue ;
+                  if (!Array.isArray(segs)) segs = [segs] ;
+                  for (let seg of segs) {
+                    let word = seg.seg ;
+                    if (word) {
+                     // console.log("match xml word " + word + " with json " + wlc +
+                       //     ": " + JSON.stringify(wordList[wlc])) ;
+
+                      seg.seg = {
+                          "#text": "" + seg.seg, 
+                          "@_c": scaleWhisperConfidenceScore(wordList[wlc++].score)
+                        } ;
+                      //console.log("WORD is " + JSON.stringify(seg)) ;
+                    }            
+                  }
+                }
+              }
+            }
+          }
+          else {  // some transcripts dont have sp..  just straight into p
+            console.log("No <sp> element") ;
+      
+            let paras = div2.p ;
+            if (paras) {
+              let ps = Array.isArray(paras) ? paras : [paras] ;
+    
+              for (let px of ps) {
+                let segs = px.seg ;
+                if (segs === undefined) continue ;
+                if (!Array.isArray(segs)) segs = [segs] ;
+                for (let seg of segs) {
+                  let word = seg.seg ;
+                  if (word) {
+                    //console.log("match xml word " + word + " with json " + wlc +
+                      //    ": " + JSON.stringify(wordList[wlc])) ;
+                    seg.seg = {
+                      "#text": "" + seg.seg,
+                      "@_c": scaleWhisperConfidenceScore(wordList[wlc++].score)
+                    } ;
+                  }  
+                }
+              }
+            }
+          }
+        } // session
+        
+        // OK, updated tei contents in teiWrapper - write to file
+
+        let tempTEIfilename = "tmp-" + teiFilename ;
+        console.log("tempTEIfilename=" + tempTEIfilename) ;
+
+        const builder = new XMLBuilder({
+          ignoreAttributes: false,
+         // preserveOrder: true,
+          attributeNamePrefix : "@_"
+        }) ;
+
+        const xmlContent = builder.build(teiWrapper) ;
+        await fs.promises.writeFile(tempTEIfilename, xmlContent) ;
+        return tempTEIfilename ;
+      }
+      catch(e) {
+        console.log("error applying scores to tei:" + e) ;
+        console.log(e.stack);
+        return  fullDir + "/" + teiFilename ; // the orig filename, unchanged
+      }                             
+}
+
+function scaleWhisperConfidenceScore(score) {
+
+  if (isNaN(score)) return 0 ;
+  if (score < 0) return 0 ;
+  if (score >= 1) return 100 ;
+  return Math.round(score * 100) ;
 }
 
 
@@ -743,11 +1028,17 @@ async function readTEIFileForJSON(fn) {
                // console.log("seg: " + JSON.stringify(seg)) ;
                 let from = seg.timeRange ? convertToCentiSecs(seg.timeRange["@_from"]) : 0 ; // 11jan
                 let fto = seg.timeRange ? convertToCentiSecs(seg.timeRange["@_to"]) : from ; // 11jan
-                chunk.content.push({
+               // console.log("seg: " + JSON.stringify(seg)) ;
+
+                let cc = {
                   s: from,
                   d: fto - from,
-                  t: seg.seg 
-                })
+                  t: seg.seg["#text"]
+                } ;
+                if (seg.seg["@_c"]) cc.c = parseInt(seg.seg["@_c"]) ;
+
+               // console.log("cc: " + JSON.stringify(cc)) ;
+                chunk.content.push(cc) ;
               }
             }
           }
@@ -774,11 +1065,13 @@ async function readTEIFileForJSON(fn) {
               // console.log("seg: " + JSON.stringify(seg)) ;
               let from = seg.timeRange ? convertToCentiSecs(seg.timeRange["@_from"]) : 0 ; // 11jan
               let fto = seg.timeRange ? convertToCentiSecs(seg.timeRange["@_to"]) : from ; // 11jan
-              chunk.content.push({
+              let cc = {
                 s: from,
                 d: fto - from,
-                t: seg.seg 
-              })
+                t: seg.seg["#text"]
+              } ;
+              if (seg.seg["@_c"]) cc.c = parseInt(seg.seg["@_c"]) ;
+              chunk.content.push(cc) ;
             }
           }
         }

@@ -11,3 +11,6 @@ web/static/jquery*
 web/static/transcripts/*.xml
 web/static/transcripts/history/*
 junk/*
+web/tmp*
+web/data/en_full.txt
+nla*.xml

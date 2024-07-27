@@ -26,6 +26,8 @@
   let undoButton = null ;
 	let redoButton = null ;
 
+	// freqList is the word frequency list (log scaled 0..100) loaded in our page's header
+
 	function addUndo(entry) {
 
 		undoStack.push(entry) ;
@@ -858,7 +860,84 @@ console.log("REDO: " + JSON.stringify(action));
 	function keyup (e) {
 
 		var keycode = e.keyCode || e.which ;
-		console.log("keyup " + keycode + " e.shiftKey " + e.shiftKey + " altKey " + e.altKey) ;	// tab 9, |\ 220
+		console.log("==> keyup " + keycode + " e.shiftKey " + e.shiftKey + " altKey " + e.altKey
+					+ " ctrlKey " + e.ctrlKey) ;	// tab 9, |\ 220
+		if (e.ctrlKey) {
+			if (keycode == 90) {	// ctrl-z - this word is good - set confidence to 100
+				if (e.target && e.target.id && (e.target.id.indexOf("w") == 0)) {
+					e.stopPropagation() ;
+					const wwid = e.target.id ;
+					const wid = e.target.id.substring(1) ;
+					const cword = idToCword[wid] ;
+					cword.e.c = 100 ;
+					cword.c = 100 ;
+					e.target.classList.add("wVerified") ;
+					console.log("confirm GOOD at wid " + wid + ", " + JSON.stringify(idToCword[wid])) ;
+					setSaveTranscriptButton(true) ;
+					showSnackBar("word " + e.target.textContent + " verified") ;
+				}
+			}
+			else if (keycode == 65) {	// ctrl-a - this word is good, and all words the same - set confidence to 100
+				if (e.target && e.target.id && (e.target.id.indexOf("w") == 0)) {
+					e.stopPropagation() ;
+					const wwid = e.target.id ;
+					const wid = e.target.id.substring(1) ;
+					const cword = idToCword[wid] ;
+					cword.e.c = 100 ;
+					cword.c = 100 ;
+					e.target.classList.add("wVerified") ;
+					console.log("confirm ALL GOOD at wid " + wid + ", " + JSON.stringify(idToCword[wid])) ;
+					let verifiedWord = e.target.textContent ;
+					count = 0 ;
+					for (let cw of idToCword) {
+						if (!cw) continue ;
+						if ((cw.e.t == verifiedWord) && !cw.e.e) {
+							cw.e.c = 100 ; // verified
+							cw.c = 100 ;
+							count++ ;
+							document.getElementById("w" + cw.id).classList.add("wVerified") ;
+						}
+					}
+					showSnackBar("All " + count + " instances of word " + verifiedWord + " verified") ;
+					setSaveTranscriptButton(true) ;
+				}
+			}
+			else if (keycode == 190) {	// ctrl-DOT - if this word has been edited, change all other instances
+																// that have the same OLD value as this word to its new value
+				if (e.target && e.target.id && (e.target.id.indexOf("w") == 0)) {
+					e.stopPropagation() ;
+					const wwid = e.target.id ;
+					const wid = e.target.id.substring(1) ;
+					const cword = idToCword[wid] ;
+					if (!cword.e.e) {
+						alert("This word has not been edited") ;
+						return ;
+					}
+					let lookFor = cword.e.t ;
+					let changeTo = cword.e.e ;
+					count = 0 ;
+					for (let cw of idToCword) {
+						if (!cw) continue ;
+						if ((cw.e.t == lookFor) && !cw.e.e) {
+							cw.e.c = 100 ; // verified
+							cw.c = 100 ;
+							cw.e.e = changeTo ;
+							count++ ;
+
+							let ele = document.getElementById("w" + cw.id) ;
+							ele.classList.add("wChanged") ;
+							ele.textContent = changeTo ;
+						}
+					}
+					if (count == 0) 
+						alert("No other instances of " +  lookFor + " were changed to " + changeTo) ;						
+					else {
+						showSnackBar("Another " + count + " instances of word " + lookFor + " changed to " + changeTo) ;
+						setSaveTranscriptButton(true) ;
+					}
+				}
+			}			
+		}
 		if (keycode == 192) { // split para key, the `~ key.  Was alt-p ((keycode == 80) &&  e.altKey) { // alt p = split
 			console.log("SPLIT e:" + e + " target " + e.target) ;
 			if (e.target && e.target.id && (e.target.id.indexOf("w") == 0)) {
@@ -1044,9 +1123,11 @@ console.log("REDO: " + JSON.stringify(action));
 					const wid = wordEle.id.substring(1) ;
 					const cword = idToCword[wid] ;						
 					const word = {s: cword.s, d: cword.d} ;
+					if (cword.c) word.c = cword.c ;
 					if (typeof cword.e.e == 'string') {	// has been edited
 						word.o = cword.e.t ;
 						word.t = cword.e.e ;
+						word.c = 100 ; // if corrected, very confident!
 					}
 					else word.t = cword.e.t ;
 					words.push(word) ;
@@ -1203,10 +1284,17 @@ console.log("REDO: " + JSON.stringify(action));
 				const word = words[w] ;
 				if (!(typeof word.t === 'string')) word.t = "" + word.t ;	// convert numbers to string - makes find/replace easier..
 				wid++ ;
+				let conf = word.c ;
+				let freq = scaleWordFreq(freqList, word.t) ;
+				let cclass = setConfidenceClass(conf, freq) ;
 				
-				const ele = "<span id='w" + wid + "' class='w1' contenteditable='true'>" + 
+				const ele = "<span id='w" + wid + "' class='w1 " +cclass + 
+					"' contenteditable='true' " + 
+					" title='confid " + conf + "/" + freq + " " + cclass + "'" +
+					">" +
 					word.t + "</span>&#8203;" ; // that's a zero-width space
 				const wordObj = {id:wid, s: word.s, e:word, d: word.d} ;
+				if (word.c) wordObj.c = word.c ;
 				idToCword[wid] = wordObj ;
 				wordsByTS.push(wordObj) ; // list of start cs for each word, ordered by ts
 				s += ele ;
@@ -1214,6 +1302,23 @@ console.log("REDO: " + JSON.stringify(action));
 			s += "</div></div></div>" ;			
 		}
 		tsEle.innerHTML = s ;
+	}
+
+	function setConfidenceClass(conf, freq) {
+
+		if (conf === undefined) return "cc10" ;
+		if (conf === null) return "cc10" ;
+		if (!conf) conf = 1 ;	// 1.. 100
+		if (!freq) freq = 1 ; // 1.. 100
+		if (conf >= 99) return "cc10" ;
+		if ((conf > 85) && (freq > 40)) return "cc10" ;
+		if ((conf > 85) && (freq > 20)) return "cc9" ;
+		if ((conf < 20)) return "cc1" ;
+
+		let prod = Math.round(Math.log10(conf * 4 * freq * 2.5) * 1.5) ; 
+		if (prod > 10) prod = 10 ;
+		if (prod < 1) prod = 1 ;
+		return "cc" + prod ;
 	}
 	
 	function loadAudio(interviewId, sessionId) {
@@ -1365,4 +1470,28 @@ console.log("REDO: " + JSON.stringify(action));
 	function formatDate(d) {
 	
 		return d.toLocaleString() ;		
+	}
+
+	function scaleWordFreq(freqList, word) {
+
+		if (!word) return 0 ;
+		let w = "" + word ; // safer..
+	
+		// strip punctuation and anything after it, including ' (coz freqlist is like that)
+		let i = w.indexOf(".") ;
+		if (i > 0) w = w.substring(0, i) ;
+		i = w.indexOf(",") ;
+		if (i > 0) w = w.substring(0, i) ;
+		i = w.indexOf("!") ;
+		if (i > 0) w = w.substring(0, i) ;
+		i = w.indexOf("?") ;
+		if (i > 0) w = w.substring(0, i) ;
+		i = w.indexOf(":") ;
+		if (i > 0) w = w.substring(0, i) ;
+		i = w.indexOf(";") ;
+		if (i > 0) w = w.substring(0, i) ;
+		i = w.indexOf("'") ;
+		if (i > 0) w = w.substring(0, i) ;  
+		w = w.replaceAll('"', '').toLowerCase() ;  
+		return freqList[w] || 0 ;
 	}
