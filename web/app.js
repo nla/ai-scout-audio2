@@ -63,7 +63,8 @@ const appConfig = {
 	audioInterviewCore: process.env.SOLR_AUDIO_INTERVIEW_CORE,
 	audioSessionCore: process.env.SOLR_AUDIO_SESSION_CORE,
 	audioSessionPartCore: process.env.SOLR_AUDIO_SESSION_PARTCORE,	
-	audioReindexQueueCore: process.env.SOLR_AUDIOREINDEXQUEUE_CORE
+	audioReindexQueueCore: process.env.SOLR_AUDIOREINDEXQUEUE_CORE,
+	audioHost: process.env.AUDIO_HOST
 } ;
 
 
@@ -125,8 +126,11 @@ app.use(function(err, req, res, next) {                 // error handler
 });
 
 
-log.info("url prefix:    " + appConfig.urlPrefix) ;
-log.info("About to start server on port " + appConfig.port) ;
+
+log.info		("About to start server on port " + appConfig.port + " with config:\n" +
+		JSON.stringify(appConfig)) ;
+console.log	("About to start server on port " + appConfig.port + " with config:\n" +
+		JSON.stringify(appConfig)) ;
 
 //  -----  start server  -----
 

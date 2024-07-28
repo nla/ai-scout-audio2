@@ -38,7 +38,7 @@ async function proxy(req, res) {    // simple audio proxy to avoid eula
     delete x.cookie ;
 
     const options = {
-      hostname: 'nla.gov.au',
+      hostname: appConfig.audioHost, // 'nla.gov.au',
       //hostname: 'nladom-test.nla.gov.au',
       port: 443,
       path: '/tarkine/listen/download/' + nlaObj + '?copyRole=l2',
