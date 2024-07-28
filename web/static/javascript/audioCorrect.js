@@ -863,7 +863,7 @@ console.log("REDO: " + JSON.stringify(action));
 		console.log("==> keyup " + keycode + " e.shiftKey " + e.shiftKey + " altKey " + e.altKey
 					+ " ctrlKey " + e.ctrlKey) ;	// tab 9, |\ 220
 		if (e.ctrlKey) {
-			if (keycode == 90) {	// ctrl-z - this word is good - set confidence to 100
+			if (keycode == 59) {	// ctrl-semicolon - this word is good - set confidence to 100
 				if (e.target && e.target.id && (e.target.id.indexOf("w") == 0)) {
 					e.stopPropagation() ;
 					const wwid = e.target.id ;
@@ -877,7 +877,7 @@ console.log("REDO: " + JSON.stringify(action));
 					showSnackBar("word " + e.target.textContent + " verified") ;
 				}
 			}
-			else if (keycode == 65) {	// ctrl-a - this word is good, and all words the same - set confidence to 100
+			else if (keycode == 188) {	// ctrl-COMMA - this word is good, and all words the same - set confidence to 100
 				if (e.target && e.target.id && (e.target.id.indexOf("w") == 0)) {
 					e.stopPropagation() ;
 					const wwid = e.target.id ;
@@ -1286,7 +1286,7 @@ console.log("REDO: " + JSON.stringify(action));
 				wid++ ;
 				let conf = word.c ;
 				let freq = scaleWordFreq(freqList, word.t) ;
-				let cclass = setConfidenceClass(conf, freq) ;
+				let cclass = setConfidenceClass(conf, freq, word.t, wid) ;
 				
 				const ele = "<span id='w" + wid + "' class='w1 " +cclass + 
 					"' contenteditable='true' " + 
@@ -1304,18 +1304,37 @@ console.log("REDO: " + JSON.stringify(action));
 		tsEle.innerHTML = s ;
 	}
 
-	function setConfidenceClass(conf, freq) {
+	function setConfidenceClass(conf, freq, word, w) {
 
 		if (conf === undefined) return "cc10" ;
 		if (conf === null) return "cc10" ;
 		if (!conf) conf = 1 ;	// 1.. 100
 		if (!freq) freq = 1 ; // 1.. 100
+		if (freq < 2) {
+			conf = Math.round(conf * 0.66) ; // just a feeling to knock confidence
+		}
+		else if (freq >= 80) {
+			if (conf < 20) conf = 20 ;
+			else {
+				conf = Math.round(conf * 1.2) ; // just a feeling to boost confidence
+				if (conf > 100) conf = 100 ;
+			}
+		}
 		if (conf >= 99) return "cc10" ;
 		if ((conf > 85) && (freq > 40)) return "cc10" ;
 		if ((conf > 85) && (freq > 20)) return "cc9" ;
 		if ((conf < 20)) return "cc1" ;
 
-		let prod = Math.round(Math.log10(conf * 4 * freq * 2.5) * 1.5) ; 
+
+
+		//let prod = Math.round(Math.log10(conf * 10 + freq * 0))  ; 
+		let prod = Math.round((conf * 30 + freq * 20) / 400) ;
+		// if (word == "Owens") 
+		/*
+		if ((w > 7060) && (w < 7085))
+			console.log("XXXXXXXXXXXXXXXXXXXword " + w + ":" + word + " conf " + conf +
+		 " freq " + freq + " prod " + prod + "  raw " + Math.log10(conf * 10 + freq * 0));
+		 */
 		if (prod > 10) prod = 10 ;
 		if (prod < 1) prod = 1 ;
 		return "cc" + prod ;

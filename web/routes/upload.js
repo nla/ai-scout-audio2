@@ -241,7 +241,22 @@ async function uploadAll(req, res) {
         (dir ==  "nla.obj-218270215")) ; // penhall  	
         */
       //if (dir == "nla.obj-220251147") ; // Nayinggul  -- redo
-      if (dir == "nla.obj-216174421") ; // Ellen Buyers
+      // if (dir == "nla.obj-216174421") ; // Ellen Buyers
+
+    if (dir == "nla.obj-218181263") ;
+      /*
+    if ((dir == "nla.obj-216363690") || (dir == "nla.obj-216255062") ||
+    (dir == "nla.obj-216204478") || (dir == "nla.obj-216203104") ||
+    (dir == "nla.obj-216192711") || (dir == "nla.obj-216199473") ||
+    (dir == "nla.obj-216178020") || (dir == "nla.obj-216299603") ||
+    (dir == "nla.obj-216193187") || (dir == "nla.obj-216207988") ||
+
+    (dir == "nla.obj-216277724") || (dir == "nla.obj-216347698") ||
+    (dir == "nla.obj-219630248") || (dir == "nla.obj-218459822") ||
+    (dir == "nla.obj-217919415") || (dir == "nla.obj-195853298") ||
+    (dir == "nla.obj-220250383") || (dir == "nla.obj-220575530") 
+      */
+
     else continue ;
      
     //  if (dir != 'nla.obj-206971479') continue ;
