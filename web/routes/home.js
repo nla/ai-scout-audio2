@@ -10,8 +10,15 @@ let appConfig = null ;
 function init(appConfigParm) {
 
   appConfig = appConfigParm ;
-  router.get('/',		    async (req, res) => { index(req, res) }) ;
+  router.get('/',		                async (req, res) => { index(req, res) }) ;
+  router.get('/testMultiDownload',	async (req, res) => { testMultiDownload(req, res) }) ;
   return router ;  
+}
+
+async function testMultiDownload(req, res) {
+
+  res.render('testMultiDownload') ;
+
 }
 
 async function index(req, res) {

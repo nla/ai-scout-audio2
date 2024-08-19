@@ -13,8 +13,13 @@ let transcriptIndex = [] ;
 
 window.addEventListener("load", (event) => {
   console.log("loaded") ;
+
+  // testMultiDownload demo hack:
+  let t =  document.getElementById("testMultiDownload") ;
+  if (t) t.addEventListener("click", testMultiDownload) ;
+
   
-  let t =  document.getElementById("searchButton") ;
+  t =  document.getElementById("searchButton") ;
   if (t) t.addEventListener("click", searchClick) ;
 
   t = document.getElementById('stxt') ;
@@ -651,3 +656,36 @@ function unfixAudioControl(ac) {
   document.getElementById(ac.id + "Caption").style.display = "none" ;
   document.getElementById(ac.id + "Para").style.display = "none" ;
 }
+
+
+function testMultiDownload() {
+
+  let filesToDownload = [
+    '/static/transcripts/nla.obj-208322780-tc.xml',
+    '/static/transcripts/nla.obj-218188489-tc.xml',
+    '/static/transcripts/nla.obj-218189396-tc.xml',
+    '/static/transcripts/nla.obj-218198610-tc.xml'
+  ]
+
+  // kick off downloads..
+
+  setTimeout(downloadOneFile, 10, filesToDownload) ;  
+}
+
+function downloadOneFile(filesToDownload) {
+
+  var file = filesToDownload.pop();
+
+  var a = document.createElement("a") ;
+  a.style.display = 'none' ;
+  a.setAttribute('href', file) ;
+  a.setAttribute('download', file.substring(file.lastIndexOf('/') + 1)) ;
+  a.click() ;
+
+  // browser gets indigestion if too much too soon - let it settle for a sec..
+
+  console.log("Downloaded " + file + " - " + filesToDownload.length + " to go..")
+  if (filesToDownload.length > 0) setTimeout(downloadOneFile, 1000, filesToDownload) ; 
+
+}
+
