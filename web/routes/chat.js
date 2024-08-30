@@ -160,7 +160,7 @@ async function chatWithInterview(req, res) {
 query += "&fq=interviewId:\"" + chatHistory.interviewId + "\" AND partType:T" ;
 
 let selectData = 
-"&wt=json&rows=10" +
+"&wt=json&rows=5" +
 "&q=" + query + 
 "&q.op=OR" +
 "&fl=sessionId,sessionSeq,partType,partId,content,startcs,endcs,score" ; 
@@ -192,10 +192,13 @@ if (!((solrRes.status == 200) && solrRes.data && solrRes.data.response && solrRe
 let systemPrompt = null ;
 
 if (chatMode == "chatty") 
-  systemPrompt = "Assistant is an intelligent chatbot that processes a partial oral history transcript to answer questions from " +
-     "from the user.  Assistant's response only contains information from the supplied transcript, " +
-     "and cites the session and timestamp of transcript fragments used. " +
-     " The title of the oral history is \"" + interview.title + "\".\n" +
+  systemPrompt = "Assistant is an intelligent chatbot that processes a partial oral history transcript to answer questions " +
+     "from the user.  Assistant's response is always restricted solely to information from the supplied transcript, " +
+     "and always cites the session and timestamp of transcript fragments used in responding, which appear in the following format at the start of " +
+     "each fragment: \"From session {session number}  at time {minutes:seconds}:\". " +
+     "If the partial transcripts do not contain enough information to answer the user question, assistant always responds that the " +
+     "transcript does not contain sufficient information. " +
+     "The title of the oral history is \"" + interview.title + "\".\n" +
      "Here follows the partial transcripts:\n"  ;
 else 
   systemPrompt = "Assistant is an intelligent chatbot that processes a partial oral history transcript to help the user " +
@@ -203,6 +206,9 @@ else
     "Assistant's response contains minimal commentary and just refers the user to the relevant part or parts of the transcript by using " +
     "the session and time of those relevant parts that answer user's question, " +
     "or responds that the transcript extracts do not contain relevant information. " +
+    "The session and timestamp of transcript fragments used in responding, which appear in the following format at the start of " +
+     "each fragment: \"From session {session number}  at time {minutes:seconds}:\". " +
+
     " The title of the oral history is \"" + interview.title + "\".\n" +
     "Here follows the partial transcripts:\n"  ;
 

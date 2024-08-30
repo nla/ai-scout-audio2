@@ -444,7 +444,7 @@ let x = 0 ;
 
     let s = await getSummary(sumChunk, bottomLevel, session, x) ;
     console.log("Getting summary for sumCHunk seq " + x++ + " of " + sumChunks.length) ;
-    sumChunk.summary = s ;
+    sumChunk.summary = s.trim() ;
     sumChunk.words = s.split(/\s+/).length ;
     sumChunk.embedding = setEmbeddingsAsFloats(await util.getEmbedding(sumChunk.summary)) ;
     console.log(" TEXT IN: " + sumChunk.text + "\n SUMMARY: " + sumChunk.summary) ;
@@ -466,15 +466,18 @@ async function getSummary(chunk, bottomLevel, session, seq) {
   if (bottomLevel) promptInstructions =  "Summarise the provided transcript of an interview " + // audio recording " +
     ((seq < 9999) ? ("with the title: \"" + session.title + "\" ") : "") +  // was seq == 0
     "in less than " + targetSummaryLength + " words. " +
-    "Base the summary only on the provided transcript text.  Never provide a preamble or a postscript - " +
-    "just summarise the transcript without further commentary, producing a shorter version of the " +
-    "provided text." ;
-  else promptInstructions =  "Further summarise the provided summary of an interview " + // audio recording transcript " +
+    "Base the summary only on the provided transcript text.  Do not provide a preamble or a postscript. " +
+    "Do not start the summary with \"Summary:\" or any other text. Do not end the summary with a word count or any other text. " +
+    "Just summarise the transcript without any further commentary." ; //, producing a shorter version of the provided text." ;
+  // else promptInstructions =  "Further summarise the provided summary of an interview " + // audio recording transcript " +
+  else promptInstructions =  "Summarise the provided description of an interview " + // audio recording transcript " +
     ((seq < 9999) ? ("with the title: \"" + session.title + "\" ") : "") +  // was seq == 0
     "in less than " + targetSummaryLength + " words. " +
-    "Base the summary only on the provided text.  Never provide a preamble or a postscript - " +
-    "just summarise the content without further commentary, producing a shorter version of the " +
-     "provided text." ;
+    "Base the summary only on the provided text.   Do not provide a preamble or a postscript. " +
+    "Do not start the summary with \"Summary:\" or any other text. Do not end the summary with a word count or any other text. " + // Never provide a preamble, postscript or word count: " +
+    "Just summarise the content without any further commentary. " ; 
+    // producing a shorter version of the " +     "provided text." ;
+
 
   console.log("\ngetSummary bottomLevel " + bottomLevel + " seq " + seq + " instructions: " + promptInstructions) ;
 
