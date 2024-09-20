@@ -164,6 +164,6 @@ https
 	}
 
   // initiated on startup, then runs to completion (empties queue) then sleeps 30sec
-	// DEBUG suspend 
-	setTimeout(scanReindexQueue, 1000) ;
+	// DEBUG suspend 		
+		setTimeout(scanReindexQueue, 1000) ;
 

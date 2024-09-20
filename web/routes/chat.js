@@ -192,7 +192,7 @@ if (!((solrRes.status == 200) && solrRes.data && solrRes.data.response && solrRe
 let systemPrompt = null ;
 
 if (chatMode == "chatty") 
-  systemPrompt = "Assistant is an intelligent chatbot that processes a partial oral history transcript to answer questions " +
+  systemPrompt = "Assistant is an intelligent chatbot that processes and summarises a partial oral history transcript to answer questions " +
      "from the user.  Assistant's response is always restricted solely to information from the supplied transcript, " +
      "and always cites the session and timestamp of transcript fragments used in responding, which appear in the following format at the start of " +
      "each fragment: \"From session {session number}  at time {minutes:seconds}:\". " +

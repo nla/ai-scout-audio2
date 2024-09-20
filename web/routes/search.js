@@ -4,7 +4,7 @@ const log = require('log4js').getLogger('home') ;
 const util = require('../util/utils') ;
 const axios = require('axios') ;
 const interviewUtil = require('../util/interview') ;
-
+const fs = require('fs') ; // for dump summary sorry
 let appConfig = null ;
         
 function init(appConfigParm) {
@@ -12,8 +12,114 @@ function init(appConfigParm) {
   appConfig = appConfigParm ;
   router.get('/',		              async (req, res) => { showSearchPage(req, res) }) ;
   router.get('/initSearch',		    async (req, res) => { initSearch(req, res) }) ;
+  router.get('/dumpSummary',       async (req, res) => { dumpSummary(req, res) }) ;
   return router ;  
 }
+
+
+async function dumpSummary(req,res) {
+
+  try {
+
+      let id = req.query.id ;
+      //let model = "Phi-3.5-mini-instruct-3.8B" ;
+      let model = "Gemma-2-9B-it-FP8" ;
+      //let model = "Phi-3-medium-128k-instruct-FP8" ;
+      let prompt =  "Summarise the provided transcript of an interview with the title: [title] " +
+          "in less than 200 words. Base the summary only on the provided transcript text.  " + 
+          "Do not provide a preamble or a postscript. Do not start the summary with \"Summary:\" or " +
+          "any other text. Do not end the summary with a word count or any other text. " +
+          "Just summarise the transcript without any further commentary." ;
+
+
+      let query = "interviewId:" + id + " AND (partType:I OR partType:S)" ;
+      let selectData = "?wt=json&q=" + encodeURIComponent(query) + 
+        "&sort=sessionSeq asc, partId asc&fl=sessionSeq,partType,partId,content,startcs,endcs,title&rows=9999" ;
+    
+      console.log("dumpSummary: " + appConfig.solr.getSolrBaseUrl() + "audio2SessionPart/select" + selectData) ;
+    
+      let solrRes = null ;
+    
+      try {    
+        solrRes = await axios.get(appConfig.solr.getSolrBaseUrl() + "audio2SessionPart/select" + selectData) ;
+      }
+      catch (e) {
+        console.log("Error solr dumpSummary query " + e) ;
+        if( e.response) console.log(e.response.data) ; 
+        throw e ;
+      }
+    
+      let js = {id: id, model: model, prompt: prompt, sessions:[]} ;
+
+      if ((solrRes.status == 200) && solrRes.data && solrRes.data.response && 
+        solrRes.data.response.docs) {
+        let sset = [] ;
+        let lastPref = "XXX" ;
+        let title = null ;
+        for (let doc of solrRes.data.response.docs) {
+          if (doc.partType == "I") {
+            sset.push(doc) ;
+            title = doc.title ;
+            js.title = title ;
+          }
+          else if (doc.partId == "S") {
+            sset.push(doc) ;
+            lastPref = "XXX" ;
+          }
+          else {
+            let partId = doc.partId ;
+            if (partId.startsWith(lastPref)) {
+              sset.pop() ; // dont want it!              
+            }
+            sset.push(doc) ;
+            lastPref = partId ;
+          }
+        }
+
+        res.render('dumpSummary', {req: req, appConfig: appConfig, id: id, model: model, title: title,
+          prompt: prompt, sset: sset}) ;
+
+
+        let sess = null ;
+        for (let s of sset) { // create the json
+          if (s.partId == 'I') js.interviewSummary = s.content ;        
+          else if (s.partId == 'S') { // session 
+            sess = {session: 1 + s.sessionSeq, summaries:[], sessionSummary: s.content} ;
+            js.sessions.push(sess) ;
+          }
+          else sess.summaries.push({from: formatCs(s.startcs), to: formatCs(s.endcs), summary: s.content}) ;
+        } 
+
+        let baseDir = "/home/kfitch/audio2/web/static/eval" ;
+        console.log(" writing " + baseDir + "/" + id + "-" + model + ".json\n") ;
+        fs.writeFileSync(baseDir + "/" + id + "-" + model + ".json", JSON.stringify(js), {encoding:'utf8'}) ; 
+
+      }
+      else {
+        res.write("solr resp dud " + solrRes.status) ;
+        res.end() ;
+      }      
+  }
+  catch (e) {
+    console.log("dumpSummary err " + e) ;
+    console.log(e.stack) ;
+   // res.write("err: " + e) ;
+   // res.end() ;
+  }
+}
+
+function formatCs(cs) {
+
+  if ((cs === undefined || cs === null) || (typeof cs !== 'number')) return "" ;
+  let secs = Math.floor(cs / 100) ;
+  let mins = Math.floor(secs / 60) ;
+  let hrs = Math.floor(mins / 60) ;
+  secs = secs - mins * 60 ;
+  mins = mins - hrs * 60 ;
+  return hrs.toString().padStart(2,0) + ":" + mins.toString().padStart(2,0) + ":" +
+        secs.toString().padStart(2,0) ;
+}
+
 
 async function showSearchPage(req, res) {
 

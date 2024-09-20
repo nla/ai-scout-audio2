@@ -1,0 +1,73 @@
+<%- include('../common/header') ; -%>
+
+<% 
+
+function formatCs(cs) {
+
+if ((cs === undefined || cs === null) || (typeof cs !== 'number')) return "" ;
+let secs = Math.floor(cs / 100) ;
+let mins = Math.floor(secs / 60) ;
+let hrs = Math.floor(mins / 60) ;
+secs = secs - mins * 60 ;
+mins = mins - hrs * 60 ;
+return hrs.toString().padStart(2,0) + ":" + mins.toString().padStart(2,0) + ":" +
+      secs.toString().padStart(2,0) ;
+}
+
+function formatStartEndCs(startcs, endcs) {
+
+return formatCs(startcs)  + " - " + formatCs(endcs) ;    
+}
+
+%>
+
+<div>
+  
+  <H2>DumpSummary for <%= id %></H2>
+
+  <div>
+    Interview: <%= id %> - <a href='/doc/outline?id=<%=id%>'><%= title %></a>
+    <BR/>Model: <%= model %>
+    <BR/>Prompt: <%= prompt %>
+  </div>
+
+  <%
+    let firstSession = true ;
+    for (let s of sset) { %>
+    <% if (s.partId == 'I') { %>
+      <P><B>Interview summary:</B></P>
+      <DIV class="indent">
+        <%- s.content.replaceAll("\n", "<BR/>") %>
+      </DIV>
+    <%}
+  
+
+    else if (s.partId == 'S') { // session 
+        if (firstSession) {
+          firstSession = false ;         
+        } 
+        else {%>
+           </DIV>
+        <%}%>
+        
+        <P><B>Session <%= (1 + s.sessionSeq) %> summary</B></P>
+        <DIV class="indent">
+          <%- s.content.replaceAll("\n", "<BR/>") %>
+        </DIV>
+        <DIV class="indent">
+      <%
+      }  
+      else { %>
+        <P><B>Session <%= (1 + s.sessionSeq) %>, time <%- formatStartEndCs(s.startcs, s.endcs) %> </B></P>
+        <DIV class="indent">
+          <%- s.content.replaceAll("\n", "<BR/>") %>
+        </DIV>
+      <%}%>
+      %>
+     
+  <%}%>
+        </div> <!-- close last session -->
+ </div>
+ Done
+
+<%- include('../common/footer') ; -%>

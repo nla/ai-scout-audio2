@@ -29,9 +29,361 @@ function init(appConfigParm) {
   router.get ('/update',  async (req, res) => { updateForm(req, res) }) ; // just set and title
   router.post('/update',  async (req, res) => { updatePost(req, res) }) ; // just set and title
   router.get('/buildVocabList',               async (req, res) => { buildVocabList(req, res) }) ; // one off to build word freq for scoring
+
+  router.get("/createHTMLsummariesFromTEI", async (req, res) => { createHTMLsummariesFromTEI(req, res) }) ; // one off to convert fixed set of TEI summaries to html for summary evaluation
+  router.get("/createSummaryComparisons", async (req, res) => { createSummaryComparisons(req, res) }) ; // one off to read machine and human summaries and compare with transcript
+
   return router ;  
 }
 
+async function createSummaryComparisons(req, res) { // one off hack
+
+  let ids = ["nla.obj-211974534",
+    "nla.obj-3016169581",
+    "nla.obj-3035715285",
+    "nla.obj-3086901401",
+    "nla.obj-3148851294"
+    ] ;
+  let modelsToRead = [
+    "human", "Gemma-2-9B-it-FP8", "Phi-3.5-mini-instruct-3.8B"
+  ]
+
+  let baseDir = "/home/kfitch/audio2/web/static/eval" ;
+
+
+  for (let id of ids) {
+    res.write("Id " + id + "\n") ;
+    console.log("Id " + id + "\n") ;
+    let models = [] ;
+    for (let mn of modelsToRead) 
+      models[mn] = JSON.parse(fs.readFileSync(baseDir + "/" + id + "-" + mn + ".json", 'utf8').toString()) ;
+    // read transcript
+    
+    let selectData = 
+      "wt=json&fl=sessionSeq,partType,partId,content,startcs,endcs&q.op=AND" +
+      "&q=interviewId:" + id + " AND partType:T&rows=999" +
+      "&sort=sessionSeq asc, partId asc" ;
+
+    let solrRes = null ;
+  
+    //console.log("about to get " + appConfig.solr.getSolrBaseUrl() + "audio2SessionPart/select?" + selectData) ;
+    try {
+      solrRes = await axios.get(
+        appConfig.solr.getSolrBaseUrl() + "audio2SessionPart/select?" + selectData) ;
+    }
+    catch (e) {
+      console.log("Error solr reading parts in createSummaryComparisons " + e) ;
+      if( e.response) console.log(e.response.data) ; 
+      throw e ;
+    }
+  
+    //console.log("createOutlines status: " + solrRes.status) ;
+    if ((solrRes.status != 200) || !(solrRes.data && solrRes.data.response && solrRes.data.response.docs))
+      throw "SOLR reading parts in createSummaryComparisons unexpected response: " + solrRes.status + " or nothing found" ;
+  
+    let docs = solrRes.data.response.docs ;
+
+    let transcript = {id:id, model: "transcript", sessions:[]} ;
+    let currentSession = null ;
+    for (let doc of docs) {
+      let seq = doc.sessionSeq + 1 ;
+      if (!currentSession || (currentSession.session != seq)) {
+        currentSession = {session: seq, chunks: []} ;
+        transcript.sessions.push(currentSession) ;
+      }
+      currentSession.chunks.push({startcs: doc.startcs, endcs: doc.endcs,
+           from: formatCs(doc.startcs), to: formatCs(doc.endcs), content: doc.content}) ;
+    }
+
+    // ok - got transcript and summaries!
+
+    // but first, convert model/human summary times from hh:mm:ss to centisecs
+
+    let title = null ;
+    for (let mn of modelsToRead) {
+      let model = models[mn] ;
+      if (!title) title = model.title ;
+      for (let sess of model.sessions) {
+        for (let summ of sess.summaries) {
+          summ.startcs = convertToCS(summ.from) ;
+          summ.endcs = convertToCS(summ.to) ;
+        }
+      }
+    }
+
+    // ok generate a header
+
+    let out = "<html><body><H2>Transcripts and summaries for " + id +
+      " - <a href='/doc/outline?id=" + id + "'>" + title + "</a></H2>\n" ;
+
+
+    // ok, sessions..
+
+    for (let sc = 0;sc<transcript.sessions.length;sc++) {
+
+      out += "<H3>Session " + (sc + 1) + "</H3>\n" ;
+      // ok, table
+
+      out += "<TABLE CELLSPACING=5  style='font-size:80%'><TR valign='top'><TH width='30%'>Transcript</TH>" ;
+      for (let mn of modelsToRead) out += "<TH width='20%'>" + mn + "</TH>" ;
+      out += "</TR>\n" ;
+
+
+      if (sc == 0) {
+
+        // prompt
+        out += "<TR VALIGN='top'><TD></TD>" ;
+
+        for (let mn of modelsToRead) {
+          let model = models[mn] ;
+          if (model.prompt) out += "<TD><B>Prompt</B>: " +
+              model.prompt + "</TD>" ;
+          else out += "<TD></TD>" ;
+        }
+        out += "</TR>" ;
+
+        // interview summary
+
+        out += "<TR VALIGN='top'><TD></TD>" ;
+
+        for (let mn of modelsToRead) {
+          let model = models[mn] ;
+          if (model.interviewSummary) out += "<TD><B>Interview summary</B>: " +
+              model.interviewSummary + "</TD>" ;
+          else out += "<TD></TD>" ;
+        }
+        out += "</TR>" ;
+
+      }
+
+
+      // session summary
+
+      out += "<TR VALIGN='top'><TD></TD>" ;
+
+      for (let mn of modelsToRead) {
+        let model = models[mn] ;
+        if (model.sessions[sc].sessionSummary) out += "<TD><B>Session summary</B>: " +
+        model.sessions[sc].sessionSummary + "</TD>" ;
+        else out += "<TD></TD>" ;
+      }
+      out += "</TR>" ;
+
+      // ok, now the fun part - match summaries with the transcript chunks
+
+      let chunks = transcript.sessions[sc].chunks ;
+
+      for (let mn of modelsToRead) {
+        let model = models[mn] ;
+        let summaries = model.sessions[sc].summaries ;
+        model.sessions[sc].skip = 0 ;
+        model.sessions[sc].nextToShow = 0 ;
+
+        // count how many chunks we have to show before our summary is over
+        let currentChunkIndex = 0 ;
+        for (let summ of summaries) {
+          summ.includedChunks = 0 ;
+          if (currentChunkIndex < chunks.length) {
+           // while (summ.endcs > chunks[currentChunkIndex].endcs) {
+            while (summ.endcs > chunks[currentChunkIndex].startcs) {
+              summ.includedChunks++ ;
+              currentChunkIndex++ ;
+              if (currentChunkIndex >= chunks.length) break ;
+            }
+          }
+          if (summ.includedChunks < 1) {
+            summ.includedChunks = 1 ;
+            currentChunkIndex++ ;
+          }
+
+        }
+      }
+
+      for (let i=0;i<chunks.length;i++) {
+
+        out += "<TR valign='top'>" +
+                  "<TD><B>" + chunks[i].from + " - " + chunks[i].to + "</B>" +
+                      "<P>" + chunks[i].content + "</P>" +
+                  "</TD>" ;
+        for (let mn of modelsToRead) {
+          let model = models[mn] ;
+          let session = model.sessions[sc] ;
+          if (session.skip > 0) {
+            session.skip-- ;
+            continue ;
+          }
+
+
+          if (session.nextToShow >= session.summaries.length) {
+            continue ;
+          }
+
+          let summ = session.summaries[session.nextToShow] ;
+        
+         // out += "<TD ROWSPAN='" + summ.includedChunks + "'>" + JSON.stringify(summ) + "</TD>" ;
+          out += "<TD ROWSPAN='" + summ.includedChunks + "'>" +
+                      "<B>" + summ.from + " - " + summ.to + "</B>" +
+                      "<P>" + summ.summary + "</P>" +
+                      ((summ.keywords) ? ("<P>Keywords: " + summ.keywords) : "") +
+                  //    "<B>Set session.skip= " + ( summ.includedChunks - 1 ) + " and " +
+                  //    " session.nextToShow = " + (session.nextToShow + 1) + 
+                  "</TD>" ;
+          session.skip = summ.includedChunks - 1 ;
+          session.nextToShow++ ;
+        }  
+        out += "</TR>\n" ;      
+      }
+
+      out+= "</TABLE>\n" ;
+    }
+    out+= "</BODY></HTML>" ;
+    res.write(" writing " + baseDir + "/" + id + "-summaryComparison.html\n") ;
+    fs.writeFileSync(baseDir + "/" + id + "-summaryComparison.html", out, {encoding:'utf8'}) ;
+    console.log("Written " + baseDir + "/" + id + "-summaryComparison.html") ;
+  }
+
+  res.end(); 
+}
+
+function convertToCS(hhmmss) {
+
+  if (!hhmmss) return 0 ;
+  let t = hhmmss.split(":") ;
+  return Number(t[0]) * 3600 * 100 +  Number(t[1]) * 60 * 100 +  Number(t[2]) * 100 ;
+}
+function formatCs(cs) {
+
+  if ((cs === undefined || cs === null) || (typeof cs !== 'number')) return "" ;
+  let secs = Math.floor(cs / 100) ;
+  let mins = Math.floor(secs / 60) ;
+  let hrs = Math.floor(mins / 60) ;
+  secs = secs - mins * 60 ;
+  mins = mins - hrs * 60 ;
+  return hrs.toString().padStart(2,0) + ":" + mins.toString().padStart(2,0) + ":" +
+        secs.toString().padStart(2,0) ;
+}
+
+async function createHTMLsummariesFromTEI(req, res) { // one off hack
+
+  let ids = ["nla.obj-211974534",
+    "nla.obj-3016169581",
+    "nla.obj-3035715285",
+    "nla.obj-3086901401",
+    "nla.obj-3148851294"] ;
+
+  let baseDir = "/home/kfitch/audio2/web/static/eval" ;
+
+  for (let id of ids) {
+    res.write("Id " + id + "\n") ;
+    console.log("Id " + id + "\n") ;
+    let ts =  fs.readFileSync(baseDir + "/" + id + "-sc.xml", 'utf8').toString() ;
+    let out = "<html><body><H2>Human Summary for " + id + "</H2>" ;
+
+    let title = "None" ;
+    let i = ts.indexOf("<title ") ;
+    if (i > 0) {
+      let j = ts.indexOf(">", i) ;
+      let k = ts.indexOf("</title>", j) ;
+      title = ts.substring(j+1, k).trim() ;
+    }
+    out += "<div>Interview: " + id + " - <a href='/doc/outline?id=" + id + "'>" + title + "</a></div>" ;
+    console.log("id " + id + " title " + title) ;
+    let js = {id: id, title:title, model: "Human", sessions:[]} ;
+
+    let ds = 0 ;
+    let session = 0 ;
+    while (true) {
+
+      i = ts.indexOf("<div1 ", ds) ;
+      if (i < 0) break ;
+      session++ ;
+      res.write("Session " + session + " ds " + ds + "\n") ;
+
+      let sess = {session: session, summaries:[]} ;
+      js.sessions.push(sess) ;
+      let j = ts.indexOf("</div1", i) ;
+      console.log("Session " + session + " ds " + ds + " i " + i + " j " + j) ;
+      let sc = ts.substring(i, j) ;
+      out += "<div><B>Session " + session + "</B></div>" + 
+          "<div><table style='margin-left:1em' cellspacing=5>" + 
+          "<tr valign='top'><th>Time</th><th>Summary</th><th>Keywords</th></tr>" ;
+
+      let si = 0 ;
+      while (true) {
+        let k = sc.indexOf("<timeRange", si) ;
+        console.log(" looking for time starting " + si + " k " + k) ;
+        if (k < 0) break ;
+        let kn = sc.indexOf("<timeRange", k+1) ;
+        res.write(" timeRange si " + si + "\n") ;
+        console.log(" timeRange si " + si) ;
+        let tc = (kn > 0) ? sc.substring(k, kn) : sc.substring(k) ;
+        let from = "?" ;
+        let fto = "?" ;
+        {
+          let x = tc.indexOf("from=\"") ;
+          if (x > 0) {
+            let y = tc.indexOf("\"", x + 7) ;
+            from = tc.substring(x+6, y) ;
+            from = from.substring(0, from.lastIndexOf(".")).replaceAll(".", ":") ;
+          }
+          x = tc.indexOf("to=\"") ;
+          if (x > 0) {
+            let y = tc.indexOf("\"", x + 5) ;
+            fto = tc.substring(x+4, y) ;
+            fto = fto.substring(0, fto.lastIndexOf(".")).replaceAll(".", ":") ;
+          }
+        }
+
+        let summary = "" ;
+        let keywords = "" ;
+
+        {
+          let xs = 0 ;
+          while (true) {
+            let xi = tc.indexOf('type="summary"', xs) ;
+            if (xi < 0) break ;
+            let te = tc.indexOf('>', xi) ;
+            let se = tc.indexOf('<', te + 1) ;
+            if (summary.length > 0) summary += "<BR/>" ;
+            summary += tc.substring(te+1, se) ;
+            xs = se ;
+          }
+        }
+
+        {
+          let xs = 0 ;
+          while (true) {
+            let xi = tc.indexOf('type="keywords"', xs) ;
+            if (xi < 0) break ;
+            let te = tc.indexOf('>', xi) ;
+            let se = tc.indexOf('<', te + 1) ;
+            if (keywords.length > 0) keywords += "<BR/>" ;
+            keywords += tc.substring(te+1, se) ;
+            xs = se ;
+          }
+        }
+        sess.summaries.push({from: from, to: fto, summary: summary, keywords: keywords}) ;
+
+        out += "<TR valign='top'><TD nowrap style='font-size:70%;font-weight:bold'>" + from + " - " + fto + "</TD>" +
+                "<TD>" + summary + "</TD><TD>" + keywords + "</TD></TR>" ;
+
+        
+        si = k + 1 ;
+      }
+      out += "</table></div>" ;
+      ds = j ;
+    }
+
+    out += "</body></html>" ;
+    res.write(" writing " + baseDir + "/" + id + "-human.html\n") ;
+    fs.writeFileSync(baseDir + "/" + id + "-human.html", out, {encoding:'utf8'}) ;
+    res.write(" writing " + baseDir + "/" + id + "-human.json\n") ;
+    fs.writeFileSync(baseDir + "/" + id + "-human.json", JSON.stringify(js), {encoding:'utf8'}) ;    
+
+ 
+  }
+  res.end() ;
+}
 
 async function buildVocabList(req,res) {  // no, nothin to do with uploads - just here coz Im too lazy  to create an admin route
 
@@ -1026,37 +1378,67 @@ async function readTEIFileForJSON(fn) {
           else si = 0 ; // no speaker, default to 0
 
           let p = content.p ;
-          console.log("*** 29mayCREATING CHUNK SPEAKER si " + si ) ;
+          console.log("*** 29MAY CREATING CHUNK SPEAKER si " + si + " P:" + JSON.stringify(p)) ;
           let chunk = {
             speaker: si,
             validated: 0,
             content: []
           }
+
           session.transcript.chunks.push(chunk) ;
+
           if (p) {
+
             let ps = Array.isArray(p) ? p : [p] ;
             for (let px of ps) {
+  
               let segs = px.seg ;
-              if (segs === undefined) continue ;
+              if (segs === undefined) {
+                console.log(" segs undefined.. ignored..") ;
+                continue ;
+              }
               if (!Array.isArray(segs)) segs = [segs] ;
+              //else console.log("segs is an array: " + JSON.stringify(segs)) ;
+
               for (let seg of segs) {
                // console.log("seg: " + JSON.stringify(seg)) ;
                 let from = seg.timeRange ? convertToCentiSecs(seg.timeRange["@_from"]) : 0 ; // 11jan
                 let fto = seg.timeRange ? convertToCentiSecs(seg.timeRange["@_to"]) : from ; // 11jan
                // console.log("seg: " + JSON.stringify(seg)) ;
 
-                let cc = {
-                  s: from,
-                  d: fto - from,
-                  t: seg.seg["#text"]
-                } ;
-                if (seg.seg["@_c"]) cc.c = parseInt(seg.seg["@_c"]) ;
+                let textSeg = seg.seg ;
+                let txt = (typeof textSeg === 'string') ? textSeg : textSeg["#text"] ;
 
-               // console.log("cc: " + JSON.stringify(cc)) ;
-                chunk.content.push(cc) ;
+                if (txt.trim().indexOf(' ') < 0) { // just one word - normal for whisper!
+                  let cc = {
+                    s: from,
+                    d: fto - from,
+                    t: txt // kkf 18sep24 seg.seg["#text"]
+                  } ;
+                  if (seg.seg["@_c"]) cc.c = parseInt(seg.seg["@_c"]) ;
+
+                 //console.log("ccAA: " + JSON.stringify(cc)) ;
+                  chunk.content.push(cc) ;
+                }
+                else {
+                  let segParts = splitSingleSegIntoWords(from, fto, txt) ;
+                  for (let part of segParts) {
+                    let cc = {
+                      s: part.from,
+                      d: part.duration,
+                      t: part.txt // kkf 18sep24 seg.seg["#text"]
+                    } ;
+                    if (seg.seg["@_c"]) cc.c = parseInt(seg.seg["@_c"]) ;
+  
+                    //console.log("ccBB: " + JSON.stringify(cc)) ;
+                    chunk.content.push(cc) ;
+
+                  }
+                }
               }
             }
           }
+          else console.log("--no p--") ;
         }
       }
       else {  // some transcripts dont have sp..  just straight into p
@@ -1075,18 +1457,51 @@ async function readTEIFileForJSON(fn) {
             session.transcript.chunks.push(chunk) ;
             let segs = px.seg ;
             if (segs === undefined) continue ;
-            if (!Array.isArray(segs)) segs = [segs] ;
+            if (!Array.isArray(segs)) segs = [segs] ; // possiblySplitSingleSegIntoWords(segs) ;
             for (let seg of segs) {
               // console.log("seg: " + JSON.stringify(seg)) ;
               let from = seg.timeRange ? convertToCentiSecs(seg.timeRange["@_from"]) : 0 ; // 11jan
               let fto = seg.timeRange ? convertToCentiSecs(seg.timeRange["@_to"]) : from ; // 11jan
+
+              let textSeg = seg.seg ;
+              let txt = (typeof textSeg === 'string') ? textSeg : textSeg["#text"] ;
+
+              if (txt.trim().indexOf(' ') < 0) { // just one word - normal for whisper!
+                let cc = {
+                  s: from,
+                  d: fto - from,
+                  t: txt // kkf 18sep24 seg.seg["#text"]
+                } ;
+                if (seg.seg["@_c"]) cc.c = parseInt(seg.seg["@_c"]) ;
+
+               //console.log("ccAA: " + JSON.stringify(cc)) ;
+                chunk.content.push(cc) ;
+              }
+              else {
+                let segParts = splitSingleSegIntoWords(from, fto, txt) ;
+                for (let part of segParts) {
+                  let cc = {
+                    s: part.from,
+                    d: part.duration,
+                    t: part.txt // kkf 18sep24 seg.seg["#text"]
+                  } ;
+                  if (seg.seg["@_c"]) cc.c = parseInt(seg.seg["@_c"]) ;
+
+                  //console.log("ccBB: " + JSON.stringify(cc)) ;
+                  chunk.content.push(cc) ;
+
+                }
+              }
+              /*
+
               let cc = {
                 s: from,
                 d: fto - from,
-                t: seg.seg["#text"]
+                t: txt // kkf 18sep24 seg.seg["#text"]
               } ;
               if (seg.seg["@_c"]) cc.c = parseInt(seg.seg["@_c"]) ;
               chunk.content.push(cc) ;
+              */
             }
           }
         }
@@ -1103,6 +1518,98 @@ async function readTEIFileForJSON(fn) {
   }
 
   return ajs ;
+}
+
+
+function splitSingleSegIntoWords(from, fto, txt) {
+
+    /* surprise!  SOME TRANSCRIPTS LOOK LIKE THIS:
+  <sp>
+<speaker>Arthur Dent</speaker>
+<p>
+<seg id="T10003" part="N">
+<timeRange from="00:01:01:13" to="00:01:19:13"/>
+<seg> Well people often ask people that, they ask for their date of birth and it's the one thing nobody knows. I was very young at the time but I'm told it was 26 January 1949 and I've got a certificate saying it was I think in St Mary's Hospital in London. </seg>
+</seg>
+</p>
+</sp>
+
+  That is, each word is not timecoded.  We attempt to identify this and split them into multiple segs...
+  */
+  let parts = [] ;
+
+  let words = txt.trim().split(' ') ;
+ 
+  // lets assume split by number of letters per word plus 1
+  let letterCount = 1 ; // hate div by zeros
+  for (let w of words) letterCount += w.length + 1 ;
+  let centisecPerLetter = (fto - from) / letterCount ;
+
+  let accumulatedLetters = 0 ;
+  for (let w of words) {
+    let startTime = from + accumulatedLetters * centisecPerLetter ;
+    let duration = (w.length + 1) * centisecPerLetter - 1 ; // so we are always less than next start time by 1 cs
+    parts.push({
+      from: Math.floor(startTime),
+      duration: Math.floor(duration),
+      txt: w
+    })
+    accumulatedLetters += w.length + 1 ;
+  }
+  console.log("\nsplitSingleSegIntoWords IN: from: " +from + " to " + fto + " txt " + txt +
+  "\n OUT: " + JSON.stringify(parts) + "\n") ;
+  return parts ;
+
+}
+
+/*
+function possiblySplitSingleSegIntoWords(seg) {
+
+  let t = (typeof seg.seg === 'string') ? seg.seg : seg.seg["#text"] ;
+
+  if (!t) return [seg] ; // give up
+  t = t.trim() ;
+  if (t.indexOf(' ') < 0) return [seg] ; // no embedded spaces, leave as is
+  let words = t.split(' ') ;
+  let from = seg.timeRange ? convertToCentiSecs(seg.timeRange["@_from"]) : 0 ;  
+  let fto = seg.timeRange ? convertToCentiSecs(seg.timeRange["@_to"]) : from ; 
+  // lets assume split by number of letters per word plus 1
+  let letterCount = 1 ; // hate div by zeros
+  for (let w of words) letterCount += w.length + 1 ;
+  let centisecPerLetter = (fto - from) / letterCount ;
+  let segs = [] ;
+  let accumulatedLetters = 0 ;
+  for (let w of words) {
+    let startTime = from + accumulatedLetters * centisecPerLetter ;
+    let duration = (w.length + 1) * centisecPerLetter ;
+    let endTime = startTime + duration - 1 ; // so we are always less than next start time by 1 cs
+    if (endTime > fto) endTime = fto ;
+    let newSeg = { timeRange: {}, seg: {}} ;
+    newSeg.timeRange["@_from"] = convertFromCentiSecs(startTime) ;
+    newSeg.timeRange["@_to"] = convertFromCentiSecs(endTime) ;
+    newSeg.seg["#text"] = w ;
+    segs.push(newSeg) ;
+    accumulatedLetters += w.length + 1 ;
+  }
+  console.log("\npossiblySplitSingleSegIntoWords IN: " + JSON.stringify(seg) +
+  "\n OUT: " + JSON.stringify(segs)) ;
+  return segs ;
+}
+  */
+
+function convertFromCentiSecs(cs) { // to hh:mm:ss:cc
+
+  cs = Math.floor(cs) ;
+  let hr = Math.floor(cs / 3600 / 100) ;
+  cs = cs - hr * 3600 * 100 ;
+  let min = Math.floor(cs / 60 / 100) ;
+  cs = cs - min * 60 * 100 ;
+  let sec = Math.floor(cs / 100) ;
+  cs = cs - sec * 100 ;
+  return ((hr < 10) ? "0" : "") + hr + ":" + 
+          ((min < 10) ? "0" : "") + min + ":" +
+          ((sec < 10) ? "0" : "") + sec + ":" +
+          ((cs < 10) ? "0" : "") + cs ;
 }
 
 function convertToCentiSecs(hhmmsscc) {

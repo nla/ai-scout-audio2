@@ -14,3 +14,11 @@ junk/*
 web/tmp*
 web/data/en_full.txt
 nla*.xml
+web/x
+web/x1
+web/y
+web/static/eval/nla.obj-*
+web/uploads/*
+web/package-lock.json
+web/package.json
+web/x
