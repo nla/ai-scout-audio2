@@ -16,8 +16,79 @@ function init(appConfigParm) {
   router.get ('/outline',  async (req, res) => { outline(req, res) }) ;
   router.get ('/transcriptJSON',  async (req, res) => { transcriptJSON(req, res) }) ;
   //router.get ('/oneOff',  async (req, res) => { oneOff(req, res) }) ;
+  router.get ('/testSummaryGeneration',  async (req, res) => { testSummaryGeneration(req, res) }) ;
+  router.get ('/runTestSummaryGeneration',  async (req, res) => { runTestSummaryGeneration(req, res) }) ;
   return router ;  
 }
+
+async function testSummaryGeneration(req, res) {
+
+  if (!req.query) req.query = {} ;
+
+  res.render('testSummaryGeneration', {req: req, appConfig: appConfig,
+    sessionId: req.query.sessionId || "",
+    maxChunksToCombine: req.query.maxChunksToCombine || 5,
+    minChunksToCombine: req.query.minChunksToCombine || 1,
+    targetSummaryLength: req.query.targetSummaryLength || 100,
+    chunkGroupingSimilarityThreshold: req.query.chunkGroupingSimilarityThreshold || 0.65,
+    promptInstructions: req.query.promptInstructions || 
+        ("Summarise the provided transcript of an interview " +  
+        "with the title: \"{TITLE}\" in less than {LENGTH} words. " +
+        "Base the summary only on the provided text.  Do not provide a preamble or a postscript. " +
+        "Do not start the summary with \"Summary:\" or any other text. Do not end the summary with a word count or any other text. " +
+        "Just summarise the content without any further commentary.")
+  }) ;
+}
+
+async function runTestSummaryGeneration(req, res) {
+  
+  if (!req.query.sessionId) {
+    res.json({ok: false, error:"no sessiondId"}) ;
+    return ;
+  }
+
+  let maxChunksToCombine = req.query.maxChunksToCombine || 0 ;
+  let minChunksToCombine = req.query.minChunksToCombine || 0 ;
+  let targetSummaryLength = req.query.targetSummaryLength || 0 ;
+  let promptInstructions = req.query.promptInstructions || null ;
+  let chunkGroupingSimilarityThreshold = req.query.chunkGroupingSimilarityThreshold || 0 ;
+
+  try {
+   
+    let sumresp = await interviewUtil.testCreateAudioSummaries(req.query.sessionId, true, maxChunksToCombine, minChunksToCombine, 
+        targetSummaryLength, promptInstructions, chunkGroupingSimilarityThreshold) ;
+
+    console.log("GENERATED SUMMARY - now rendering") ;
+    res.render('runTestSummaryGeneration', {req: req, appConfig: appConfig, resp:{
+      sessionId: req.query.sessionId || "",
+      maxChunksToCombine: maxChunksToCombine,
+      minChunksToCombine: minChunksToCombine,
+      targetSummaryLength: targetSummaryLength,
+      promptInstructions: promptInstructions, 
+      chunkGroupingSimilarityThreshold: chunkGroupingSimilarityThreshold,
+      chunkSummaryHierarchy: sumresp}
+    }) ;
+  
+  /*
+  res.json({ok: true, 
+      maxChunksToCombine: maxChunksToCombine, minChunksToCombine: minChunksToCombine, targetSummaryLength: targetSummaryLength, promptInstructions: promptInstructions,
+      chunkSummaryHierarchy: resp}
+  ) ;
+   */
+  }
+  catch (err) {
+    console.log("runTestSummaryGeneration failed, err: " + err) ;
+    console.log(err.stack) ;
+    res.json({ok:false, err: err}) ;
+  }
+
+}
+
+
+// https://hinton.nla.gov.au:8007/doc/testSummaryGeneration?sessionId=nla.obj-217409398&targetSummaryLength=50
+// https://hinton.nla.gov.au:8007/doc/testSummaryGeneration?sessionId=nla.obj-217409398
+
+
 
 async function transcriptJSON(req, res) {
 

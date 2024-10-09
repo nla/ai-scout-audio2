@@ -1,0 +1,96 @@
+<%- include('../common/header') ; -%>
+
+
+<% 
+
+function formatCs(cs) {
+
+if ((cs === undefined || cs === null) || (typeof cs !== 'number')) return "" ;
+let secs = Math.floor(cs / 100) ;
+let mins = Math.floor(secs / 60) ;
+let hrs = Math.floor(mins / 60) ;
+secs = secs - mins * 60 ;
+mins = mins - hrs * 60 ;
+return hrs.toString().padStart(2,0) + ":" + mins.toString().padStart(2,0) + ":" +
+      secs.toString().padStart(2,0) ;
+}
+
+function formatStartEndCs(startcs, endcs) {
+
+return formatCs(startcs)  + " - " + formatCs(endcs) ;    
+}
+
+  function showSummary(level, contents, last) {
+
+    let summaryDesc = "Intermediate" ;
+    if (level == 1) summaryDesc = "Bottom level (transcript)" ;
+    else if (last) summaryDesc = "Top level (session)" ;
+
+    let r = "<H3>Summary level " + level + " - " + summaryDesc + "</H3>\n" ;
+
+    r += "<TABLE cellspacing='5'>" ;
+    let seq = 1 ;
+    for (let c of contents) {
+    //  r += "<TR VALIGN='top'><TD nowrap='y'>Sequence " + seq++ + "</TD></TR>" ;
+      r += "<TR VALIGN='top'><TD nowrap='y' colspan='3'><B style='font-size:110%'>" + (seq++) + ".  Time: " + formatStartEndCs(c.startcs, c.endcs) + "</B> " +
+            "&nbsp;&nbsp;&nbsp;Chunk range: " + (c.startChunk + 1) + " - " + (c.endChunk + 1) + ", summary word count: " + c.words +
+            "</TD></TR>\n" +
+           "<TR VALIGN='top'><TD width='10%'></TD><TD width='45%'>Summary: <B>" + c.summary.replace(/\n/g, "<BR/>") + "</B></TD>" +
+           "<TD style='font-size:90%' width='45%'><B>Source:</B> " + c.text + "</TD></TR>\n" ;      
+    }
+    return r + "</TABLE>\n" ;
+  }
+%>
+<div id="uploadForm">
+  
+  <H2>Test transcript summary generation</H2>
+
+    <table cellspacing='5'>
+      <tr valign="top">
+        <td>Session id</td>
+        <td><%=resp.sessionId%></td>
+
+      </tr>  
+      <tr valign="top">
+        <td>Minimum number of chunks to combine in a summary</td>
+        <td><%=resp.minChunksToCombine%></td>
+      </tr>  
+      <tr valign="top">
+        <td nowrap='y'>Maximum number of chunks to combine in a summary</td>
+        <td><%=resp.maxChunksToCombine%></td>
+      </tr>        
+
+      <tr valign="top">
+        <td>Targetted word count of generated summary</td>
+        <td><%=resp.targetSummaryLength%></td>
+      </tr>    
+      
+      <tr valign="top">
+        <td>Chunk grouping similarity threshold</td>
+        <td><%=resp.chunkGroupingSimilarityThreshold%></td>
+      </tr>
+
+      <tr valign="top">
+        <td>Instructions given to the large language model</td>
+        <td><%=resp.promptInstructions%></td> 
+      </tr>  
+      </table>      
+
+    
+  
+  <div style="margin-top:1em">
+    <H2>Summary</H2>
+
+
+
+
+    <% for (let i=1;i<resp.chunkSummaryHierarchy.length;i++) { %>
+
+      <%- showSummary(i, resp.chunkSummaryHierarchy[i], (i == (resp.chunkSummaryHierarchy.length - 1))) %>
+
+    <% } %>
+  </div>
+</div>
+
+<%- include('../common/footer') ; -%>
+

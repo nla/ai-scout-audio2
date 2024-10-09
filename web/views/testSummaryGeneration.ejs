@@ -1,0 +1,68 @@
+<%- include('../common/header') ; -%>
+
+
+<div id="uploadForm">
+  
+  <H2>Test transcript summary generation</H2>
+
+  <form action="runTestSummaryGeneration"  method="get" target="_blank">
+    <table>
+      <tr valign="top">
+        <td>Session id</td>
+        <td><input type="text" name="sessionId" value="<%=sessionId%>"/></td>
+        <td>An individual, tape-level (not interview level) session id, eg <b>nla.obj-217409398</b>
+          You can find session ids listed under the <I>Session summaries and transcripts</I> part of transcript display.
+        </td> 
+      </tr>  
+      <tr valign="top">
+        <td>Minimum number of chunks to combine in a summary</td>
+        <td><input type="number" name="minChunksToCombine" min="1" max="5" value="<%=minChunksToCombine%>"/></td>
+        <td>Normally 1, but try 2 or more!
+        </td> 
+      </tr>  
+      <tr valign="top">
+        <td>Maximum number of chunks to combine in a summary</td>
+        <td><input type="number" name="maxChunksToCombine" min="1" max="15" value="<%=maxChunksToCombine%>"/></td>
+        <td>Defaults to 5, but explore..
+        </td> 
+      </tr>        
+
+      <tr valign="top">
+        <td>Targetted word count of generated summary</td>
+        <td><input type="number" name="targetSummaryLength" min="10" max="300" value="<%=targetSummaryLength%>"/></td>
+        <td>Probably in the range 40 - 200?
+        </td> 
+      </tr>    
+
+      <tr valign="top">
+        <td>Chunk grouping similarity threshold</td>
+        <td><input type="number" name="chunkGroupingSimilarityThreshold" min="0.2" max="0.8" step="0.01" value="<%=chunkGroupingSimilarityThreshold%>"/></td>
+        <td>When grouping chunks of transcript together to summarise, how similar does a chunk have to be to the proceeding chunk to extend the group? 
+          Higher values will result in shorter chunk groups. 
+          Probably in the range 0.4 - 0.8?
+        </td> 
+      </tr> 
+
+      
+      
+      <tr valign="top">
+        <td>Instructions given to the large language model</td>
+        <td><textarea rows="8" cols="60" name="promptInstructions"><%=promptInstructions%></textarea></td>
+        <td>Anything you like, but please retain the <B>{TITLE}</B> part, which will be replaced by the 
+          title of the interview, and retain the <B>{LENGTH}</B> part, which will be replaced by your 
+          targetted word count.
+        </td> 
+      </tr>        
+      
+      <tr valign="top">
+        <td> </td>
+        <td><input type="submit" value="Generate summary" style="margin-top:1em"/></td>
+      </tr>          
+    </table>
+  </form>
+
+  <div style="margin-top:2em"><I>Summary generation typically takes between 1 and 3 minutes - and will open in a new tab - please be patient!</I></div>
+</div>
+
+<%- include('../common/footer') ; -%>
+

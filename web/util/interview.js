@@ -358,7 +358,8 @@ async function processTextIntoChunks(origChunks) {
   return chunks ;
 }
 
-async function processChunksIntoSummaries(chunksHierarchy, maxChunksToCombine, minChunksToCombine, bottomLevel, session) {
+async function processChunksIntoSummaries(chunksHierarchy, maxChunksToCombine, minChunksToCombine, bottomLevel, session, 
+      targetSummaryLength, promptInstructions, chunkGroupingSimilarityThreshold) {
 
   // Find semantic similarity between chunks of text so we can group the most similar for summaries.
   // The first time we are invoked, chunksHierarchy only contains the original text grouped into sentences or paras.
@@ -413,7 +414,7 @@ async function processChunksIntoSummaries(chunksHierarchy, maxChunksToCombine, m
   for (let i=1;i<chunks.length;i++) {
     if ((runLength >= maxChunksToCombine) || 
         (((chunks.length > 4) && (runLength >= minChunksToCombine)) && 
-            (util.innerProduct(chunks[i].embedding, chunks[i-1].embedding) < 0.65))) {
+            (util.innerProduct(chunks[i].embedding, chunks[i-1].embedding) < chunkGroupingSimilarityThreshold))) {
       currentSummary.endChunk = i - 1 ;
       sumChunks.push(currentSummary) ;
       console.log("created summary " + currentSummary.startChunk + " - " + currentSummary.endChunk + 
@@ -442,7 +443,7 @@ async function processChunksIntoSummaries(chunksHierarchy, maxChunksToCombine, m
 let x = 0 ;
   for (let sumChunk of sumChunks) {
 
-    let s = await getSummary(sumChunk, bottomLevel, session, x) ;
+    let s = await getSummary(sumChunk, bottomLevel, session, x, targetSummaryLength, promptInstructions) ;
     console.log("Getting summary for sumCHunk seq " + x++ + " of " + sumChunks.length) ;
     sumChunk.summary = s.trim() ;
     sumChunk.words = s.split(/\s+/).length ;
@@ -453,16 +454,37 @@ let x = 0 ;
   // recurse summaries to get a single 500 word summary.  Never combine more than 4 at a time..
   
   chunksHierarchy.push(sumChunks) ;
-  return processChunksIntoSummaries(chunksHierarchy, 4, 2, false, session) ; // go recursive - combine a max of 4 summaries, min of 2 summaries
+
+   // go recursive - note - WE IGNORE PASSED MAX/MIN CHUNK SIZE!    Combine a max of 4 summaries, min of 2 summaries 
+  return processChunksIntoSummaries(chunksHierarchy, 4, 2, false, session, targetSummaryLength, promptInstructions, chunkGroupingSimilarityThreshold) ;
 }
 
+const DEFAULT_LOW_LEVEL_PROMPT = "Summarise the provided transcript of an interview " +  
+    "with the title: \"{TITLE}\" " +
+    "in less than {LENGTH} words. " +
+    "Base the summary only on the provided text.  Do not provide a preamble or a postscript. " +
+    "Do not start the summary with \"Summary:\" or any other text. Do not end the summary with a word count or any other text. " +
+    "Just summarise the content without any further commentary." ;
 
-async function getSummary(chunk, bottomLevel, session, seq) { 
 
-  let targetSummaryLength = 200 ;
+
+async function getSummary(chunk, bottomLevel, session, seq, targetSummaryLength, promptInstructions) { 
+
+  if (!targetSummaryLength) targetSummaryLength = 200 ;
   if (chunk.words < targetSummaryLength) targetSummaryLength = chunk.words ;
 
-  let promptInstructions = null ;
+
+  // let promptInstructions = null ;
+  if (!promptInstructions) promptInstructions = DEFAULT_LOW_LEVEL_PROMPT ;
+
+  // change it slightly if we are summarising a summary:
+  if (!bottomLevel) promptInstructions = promptInstructions.replace(" provided transcript of an interview", " provided description of an interview") ;
+
+  promptInstructions = promptInstructions.replace("{TITLE}", session.title) ;
+  promptInstructions = promptInstructions.replace("{LENGTH}", targetSummaryLength) ;
+
+  /* kkf 8oct24 - support passing prompt as parm
+
   if (bottomLevel) promptInstructions =  "Summarise the provided transcript of an interview " + // audio recording " +
     ((seq < 9999) ? ("with the title: \"" + session.title + "\" ") : "") +  // was seq == 0
     "in less than " + targetSummaryLength + " words. " +
@@ -477,7 +499,7 @@ async function getSummary(chunk, bottomLevel, session, seq) {
     "Do not start the summary with \"Summary:\" or any other text. Do not end the summary with a word count or any other text. " + // Never provide a preamble, postscript or word count: " +
     "Just summarise the content without any further commentary. " ; 
     // producing a shorter version of the " +     "provided text." ;
-
+  */
 
   console.log("\ngetSummary bottomLevel " + bottomLevel + " seq " + seq + " instructions: " + promptInstructions) ;
 
@@ -513,6 +535,9 @@ async function getSummary(chunk, bottomLevel, session, seq) {
     if (!eRes.status == 200) throw "Cant get summary, server returned http resp " + eRes.status ;
 
    if (!eRes.data || !eRes.data.text) throw "Cant get summary, server returned no data" ;
+
+   // console.log("\n***===> eRes.data:\n" + JSON.stringify(eRes.data)) ;
+
    let r = eRes.data.text[0] ;
    if (startResponseMarker) {
      let rs = r.indexOf(startResponseMarker) ;
@@ -545,7 +570,16 @@ function setEmbeddingsAsFloats(rawEmbedding) { // fixes a problem where embeddin
   return rawEmbedding ;
 }
 
-async function createAudioSummaries(session) {
+const MAX_CHUNKS_TO_COMBINE = 5 ;
+const MIN_CHUNKS_TO_COMBINE = 1 ;
+const CHUNK_GROUPING_SIMILARITY_THRESHOLD = 0.65 ;
+
+async function createAudioSummaries(session, noUpdate, maxChunksToCombine, minChunksToCombine,
+  targetSummaryLength, promptInstructions, chunkGroupingSimilarityThreshold) {
+
+  if (!maxChunksToCombine) maxChunksToCombine = MAX_CHUNKS_TO_COMBINE ;
+  if (!minChunksToCombine) minChunksToCombine = MIN_CHUNKS_TO_COMBINE ;
+  if (!chunkGroupingSimilarityThreshold) chunkGroupingSimilarityThreshold = CHUNK_GROUPING_SIMILARITY_THRESHOLD ;
 
   let ajstr = "" ;
   for (let jp of session.transcriptJson) ajstr += jp ;
@@ -566,7 +600,8 @@ async function createAudioSummaries(session) {
 
   chunksHierarchy = [] ;  // will be an array of chunkSummary arrays
   chunksHierarchy.push(chunks) ;
-  await processChunksIntoSummaries(chunksHierarchy, 5, 1, true, session) ; // combine max of 5, min of 1 to get a summary
+  await processChunksIntoSummaries(chunksHierarchy, maxChunksToCombine, minChunksToCombine, true, session,
+    targetSummaryLength, promptInstructions, chunkGroupingSimilarityThreshold ) ; // combine (by default) max of 5, min of 1 to get a summary
 
   if (chunksHierarchy.length == 1) {  // all the text fitted into the summary!
     let txt = chunksHierarchy[0][0].text ;
@@ -595,6 +630,8 @@ async function createAudioSummaries(session) {
         else console.log("SUMMARY TEXT:\n" + summary.summary) ;
       }
   }
+
+  if (noUpdate) return chunksHierarchy ;
 
   // reverse the hierarchy for storage..  high summary -> transcript text (historical reasons...)
 
@@ -1675,6 +1712,12 @@ module.exports = {
     if (iv) iv.indexToLowerContent = doc.indexToLowerContent ; // add it to the cache?!
 
     return doc.indexToLowerContent ;
+  },
+
+  testCreateAudioSummaries: async function(sessionId, noUpdate, maxChunksToCombine, minChunksToCombine, targetSummaryLength, promptInstructions) {
+
+    let session = await getSingleSessionAndParts(sessionId, false) ;
+    return await createAudioSummaries(session, noUpdate, maxChunksToCombine, minChunksToCombine, targetSummaryLength, promptInstructions) ;
   }
 
 } ;
