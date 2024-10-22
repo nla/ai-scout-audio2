@@ -18,6 +18,7 @@ web/x
 web/x1
 web/y
 web/static/eval/nla.obj-*
+web/static/summaryGenerationTests/*
 web/uploads/*
 web/package-lock.json
 web/package.json

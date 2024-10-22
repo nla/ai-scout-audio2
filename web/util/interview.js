@@ -455,8 +455,12 @@ let x = 0 ;
   
   chunksHierarchy.push(sumChunks) ;
 
+  /* kkf 22oct24 - we used to generate summaries hierarchically, but business only value and want the lowest level summary = not even
+     a session/tape summary is wanted!   So we dont do this anymore - just return the chunksHierarchy we created..
    // go recursive - note - WE IGNORE PASSED MAX/MIN CHUNK SIZE!    Combine a max of 4 summaries, min of 2 summaries 
   return processChunksIntoSummaries(chunksHierarchy, 4, 2, false, session, targetSummaryLength, promptInstructions, chunkGroupingSimilarityThreshold) ;
+  */
+  return chunksHierarchy ;
 }
 
 const DEFAULT_LOW_LEVEL_PROMPT = "Summarise the provided transcript of an interview " +  
@@ -517,7 +521,7 @@ async function getSummary(chunk, bottomLevel, session, seq, targetSummaryLength,
 
     let data = {
           "prompt": prompt,
-          "use_beam_search": false,              
+// vllm 0.6.3          "use_beam_search": false,              
           "temperature":0.0,
           "n":1,
           "max_tokens": Math.ceil(targetSummaryLength * 2 * 1.2),
@@ -546,6 +550,7 @@ async function getSummary(chunk, bottomLevel, session, seq, targetSummaryLength,
    let ri = r.indexOf("[ANSWER STARTS]") ;
    if (ri >= 0) r = r.substring(ri+15).trim() ;
        
+   r = r.replaceAll("|", "") ; // Gemma2-9b often ends with a couple of these..
    r = r.replaceAll("</s>", "").replaceAll("" + targetSummaryLength + "-word summary:", "").replaceAll("[ANSWER ENDS]", "") ;
 
    r = r.replace(/\bThe user\b/g, "The speaker").replace(/\bthe user\b/g, "the speaker")  // one model is doing this..
@@ -603,6 +608,8 @@ async function createAudioSummaries(session, noUpdate, maxChunksToCombine, minCh
   await processChunksIntoSummaries(chunksHierarchy, maxChunksToCombine, minChunksToCombine, true, session,
     targetSummaryLength, promptInstructions, chunkGroupingSimilarityThreshold ) ; // combine (by default) max of 5, min of 1 to get a summary
 
+  if (noUpdate) return chunksHierarchy ;
+
   if (chunksHierarchy.length == 1) {  // all the text fitted into the summary!
     let txt = chunksHierarchy[0][0].text ;
     //console.log("sole text chunk:" + txt) ;
@@ -631,7 +638,7 @@ async function createAudioSummaries(session, noUpdate, maxChunksToCombine, minCh
       }
   }
 
-  if (noUpdate) return chunksHierarchy ;
+
 
   // reverse the hierarchy for storage..  high summary -> transcript text (historical reasons...)
 
@@ -964,7 +971,7 @@ async function createInterviewSummaryFromSessionSummaries(iv) {
 
     let data = {
           "prompt": prompt,
-          "use_beam_search": false,              
+// vllm 0.6.3         "use_beam_search": false,              
           "temperature":0.0,
           "n":1,
           "max_tokens": Math.ceil(200 * 2 * 1.2),

@@ -7,6 +7,9 @@ const interviewUtil = require('../util/interview') ;
 const axios = require('axios') ;
 const fs = require('fs') ;
 
+const ejs = require('ejs') ; // for our test summary generation
+ 
+
 let appConfig = null ;
 
 
@@ -17,6 +20,7 @@ function init(appConfigParm) {
   router.get ('/transcriptJSON',  async (req, res) => { transcriptJSON(req, res) }) ;
   //router.get ('/oneOff',  async (req, res) => { oneOff(req, res) }) ;
   router.get ('/testSummaryGeneration',  async (req, res) => { testSummaryGeneration(req, res) }) ;
+  router.get ('/listTestSummaryGenerations',  async (req, res) => { listTestSummaryGenerations(req, res) }) ;
   router.get ('/runTestSummaryGeneration',  async (req, res) => { runTestSummaryGeneration(req, res) }) ;
   return router ;  
 }
@@ -40,6 +44,23 @@ async function testSummaryGeneration(req, res) {
   }) ;
 }
 
+async function listTestSummaryGenerations(req, res) {
+
+  try {
+    let prevTests = fs.readFileSync("data/summaryGenerationTests.tsv", { encoding: 'utf8', flag: 'r' }) ;
+    res.render('listTestSummaryGenerations', {req: req, appConfig: appConfig, prevTests: prevTests.split("\n")}) ;
+  }
+  catch (err) {
+    console.log("listTestSummaryGenerations failed, err: " + err) ;
+    console.log(err.stack) ;
+    res.json({ok:false, err: err}) ;
+  }
+}
+
+
+//const MODEL = "Gemma2-9B fp8" ;
+const MODEL = "princeton-nlp/gemma-2-9b-it-SimPO" ;
+
 async function runTestSummaryGeneration(req, res) {
   
   if (!req.query.sessionId) {
@@ -59,22 +80,33 @@ async function runTestSummaryGeneration(req, res) {
         targetSummaryLength, promptInstructions, chunkGroupingSimilarityThreshold) ;
 
     console.log("GENERATED SUMMARY - now rendering") ;
-    res.render('runTestSummaryGeneration', {req: req, appConfig: appConfig, resp:{
+
+    let template = fs.readFileSync("views/runTestSummaryGeneration.ejs", { encoding: 'utf8', flag: 'r' }) ;
+    
+    let html = ejs.render(template, {req: req, appConfig: appConfig, resp:{
       sessionId: req.query.sessionId || "",
       maxChunksToCombine: maxChunksToCombine,
       minChunksToCombine: minChunksToCombine,
       targetSummaryLength: targetSummaryLength,
       promptInstructions: promptInstructions, 
       chunkGroupingSimilarityThreshold: chunkGroupingSimilarityThreshold,
-      chunkSummaryHierarchy: sumresp}
-    }) ;
-  
-  /*
-  res.json({ok: true, 
-      maxChunksToCombine: maxChunksToCombine, minChunksToCombine: minChunksToCombine, targetSummaryLength: targetSummaryLength, promptInstructions: promptInstructions,
-      chunkSummaryHierarchy: resp}
-  ) ;
-   */
+      model: MODEL,
+      chunkSummaryHierarchy: sumresp}},
+      {views:["views", "..", "."]}
+  );
+ 
+    res.setHeader('Content-Type', 'text/html') ;
+    res.send(html) ;
+    res.end() ;
+    // res.json(html) ;
+
+    let ts = util.currentTimestampAsYYYYMMDDHHmmSSSSS() ;
+    let outFile = "static/summaryGenerationTests/" + ts + ".html" ;
+    fs.writeFileSync(outFile, html) ;
+    let indexFile = "data/summaryGenerationTests.tsv" ;
+    fs.appendFileSync(indexFile, "" + ts + "\t" + req.query.sessionId + "\t" + maxChunksToCombine + "\t" + minChunksToCombine + "\t" +
+            targetSummaryLength + "\t" + chunkGroupingSimilarityThreshold + "\t" + MODEL + "\t" + promptInstructions + "\n") ;
+
   }
   catch (err) {
     console.log("runTestSummaryGeneration failed, err: " + err) ;

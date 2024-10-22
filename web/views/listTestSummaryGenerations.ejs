@@ -1,0 +1,72 @@
+<%- include('../common/header') ; -%>
+
+<style>
+
+TH {border-bottom: 1px solid grey;}
+</style>
+
+<% 
+
+
+
+  function showSummary(level, contents, last) {
+
+    let summaryDesc = "Intermediate" ;
+    if (level == 1) summaryDesc = "Bottom level (transcript)" ;
+    else if (last) summaryDesc = "Top level (session)" ;
+
+    let r = "<H3>Summary level " + level + " - " + summaryDesc + "</H3>\n" ;
+
+    r += "<TABLE cellspacing=8 cellpadding=5>" ;
+    let seq = 1 ;
+    for (let c of contents) {
+    //  r += "<TR VALIGN='top'><TD nowrap='y'>Sequence " + seq++ + "</TD></TR>" ;
+      r += "<TR VALIGN='top'><TD nowrap='y' colspan='3'><B style='font-size:110%'>" + (seq++) + ".  Time: " + formatStartEndCs(c.startcs, c.endcs) + "</B> " +
+            "&nbsp;&nbsp;&nbsp;Chunk range: " + (c.startChunk + 1) + " - " + (c.endChunk + 1) + ", summary word count: " + c.words +
+            "</TD></TR>\n" +
+           "<TR VALIGN='top'><TD width='10%'></TD><TD width='45%'>Summary: <B>" + c.summary.replace(/\n/g, "<BR/>") + "</B></TD>" +
+           "<TD style='font-size:90%' width='45%'><B>Source:</B> " + c.text + "</TD></TR>\n" ;      
+    }
+    return r + "</TABLE>\n" ;
+  }
+%>
+ 
+  
+
+  <div style="margin-top:1em">
+    <H2>Previous test summary generations</H2>
+
+
+
+    <TABLE cellspacing="5">
+      <TR valign="top" >
+        <TH >Summary run</TH><TH>Session id</TH>
+        <TH>Minimum number of chunks to combine in a summary</TH><TH>Maximum number of chunks to combine in a summary</TH>
+        <TH>Targetted word count of generated summary</TH><TH>Chunk grouping similarity threshold</TH>
+        <TH>Model</TH>
+        <TH>Instructions given to the large language model</TH>
+      </TR>
+    
+  
+    <% for (let test of prevTests) { %>
+      <% 
+        let parts = test.split("\t") ;
+      %>
+      <TR valign="top">
+        <TD nowrap><%- "<a href='/static/summaryGenerationTests/" + parts[0] + ".html'>" + parts[0] + "</a>"%></TD>
+        <TD nowrap><%=parts[1]%></TD>
+        <TD align="right"><%=parts[3]%></TD>
+        <TD align="right"><%=parts[2]%></TD>
+        <TD align="right"><%=parts[4]%></TD>
+        <TD align="right"><%=parts[5]%></TD>
+        <TD nowrap><%=parts[6]%></TD>
+        <TD><%=parts[7]%></TD>
+      </TR>    
+
+    <% } %>
+    </TABLE>
+ 
+</div>
+
+<%- include('../common/footer') ; -%>
+

@@ -64,7 +64,7 @@ async function chat(req, res) {
 
     let data = {
           "prompt": prompt,
-          "use_beam_search": false,              
+ // vllm 0.6.3         "use_beam_search": false,              
           "temperature": chatHistory.temperature,
           "n":1,
           "max_tokens": chatHistory.maxTokens,
@@ -239,7 +239,7 @@ for (let doc of solrRes.data.response.docs) {
 
     let data = {
           "prompt": prompt,
-          "use_beam_search": false,              
+// vllm 0.6.3          "use_beam_search": false,              
           "temperature": 0,
           "n":1,
           "max_tokens": 300,

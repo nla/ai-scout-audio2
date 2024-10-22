@@ -35,7 +35,7 @@ return formatCs(startcs)  + " - " + formatCs(endcs) ;
       r += "<TR VALIGN='top'><TD nowrap='y' colspan='3'><B style='font-size:110%'>" + (seq++) + ".  Time: " + formatStartEndCs(c.startcs, c.endcs) + "</B> " +
             "&nbsp;&nbsp;&nbsp;Chunk range: " + (c.startChunk + 1) + " - " + (c.endChunk + 1) + ", summary word count: " + c.words +
             "</TD></TR>\n" +
-           "<TR VALIGN='top'><TD width='10%'></TD><TD width='45%'>Summary: <B>" + c.summary.replace(/\n/g, "<BR/>") + "</B></TD>" +
+           "<TR VALIGN='top'><TD width='10%'></TD><TD width='45%'><I>LLM Generated Summary:</I> <B>" + c.summary.replace(/\n/g, "<BR/>") + "</B></TD>" +
            "<TD style='font-size:90%' width='45%'><B>Source:</B> " + c.text + "</TD></TR>\n" ;      
     }
     return r + "</TABLE>\n" ;
@@ -43,7 +43,7 @@ return formatCs(startcs)  + " - " + formatCs(endcs) ;
 %>
 <div id="uploadForm">
   
-  <H2>Test transcript summary generation</H2>
+  <H2>Test transcript summary generation, Model: <%=resp.model%></H2>
 
     <table cellspacing='5'>
       <tr valign="top">
@@ -76,7 +76,7 @@ return formatCs(startcs)  + " - " + formatCs(endcs) ;
       </tr>  
       </table>      
 
-    
+      <a  target="_blank" href="/doc/testSummaryGeneration?sessionId=<%=resp.sessionId%>&minChunksToCombine=<%=resp.minChunksToCombine%>&maxChunksToCombine=<%=resp.maxChunksToCombine%>&targetSummaryLength=<%=resp.targetSummaryLength%>&chunkGroupingSimilarityThreshold=<%=resp.chunkGroupingSimilarityThreshold%>&promptInstructions=<%=encodeURIComponent(resp.promptInstructions)%>">Regenerate with similar parameters</a>
   
   <div style="margin-top:1em">
     <H2>Summary</H2>
