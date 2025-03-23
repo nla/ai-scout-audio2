@@ -1,0 +1,161 @@
+Your task is to extract significant entities and their relationships from the provided text.
+
+Entities:
+
+Identify core entities with types such as PERSON, ORGANISATION, PLACE, EVENT, CONCEPT. For novel entity types, classify them based on semantic similarity to these core entity types or create new types as needed.
+
+Relationships:
+
+Identify relationships between entities. Common relationship types include: VISITED, ATTENDED, CREATED, IS_A, PART_OF, HAS_PROPERTY, OCCURS_AT, INVOLVES.
+
+You should be flexible in identifying new relationship types as needed.
+
+Output the results in JSON format as lists of entities and relationships.  Each entity should show the 
+entity name as found in the text, the type of entity and the reason you have extracted it.  Each relationship
+should show the name and type of two entities in the relationship, the name and type of the relationship, and
+the reason you have extracted it which may include a snippet of text supporting the reason.
+
+As an example, given this text:
+
+### John Smith woke up startled. He'd only been in Burnley for 5 days visiting his sister, Fiona, but already
+he was full of anticipation for the derby between Burnley Football Club and Blackburn Rovers later that day.
+He wasted no time, jumped out of bed, fed his hungry looking dog, Molly, and headed down to Turf Moor, the 
+home of Burnley Football Club. ###
+
+You should response with the following JSON:
+
+{
+  "entities": [
+    {
+      "type": "PERSON",
+      "name": "John Smith",
+      "reason": "the story mentioned John"
+    },
+    {
+      "type": "PERSON",
+      "name": "Fiona",
+      "reason": "the story mentioned John visiting Fiona"
+    },
+    {
+      "type": "ANIMAL",
+      "name": "Molly",
+      "reason": "the story mentioned Molly"
+    },
+    {
+      "type": "PLACE",
+      "name": "Burnley",
+      "reason": "John had been in Burnley for 5 days"
+    },
+    {
+      "type": "PLACE",
+      "name": "Turf Moor",
+      "reason": "the home of Burnley Football Club"
+    },
+    {
+      "type": "ORGANISATION",
+      "name": "Burnley Football Club",
+      "reason": "the story mentioned Burnley Football Club"
+    },
+    {
+      "type": "ORGANISATION",
+      "name": "Blackburn Rovers",
+      "reason": "the story mentioned Blackburn Rovers"
+    },
+    {
+      "type": "EVENT",
+      "name": "Football game between the Blackburn Rovers and Burnley Football Club",
+      "reason": "the story mentioned the derby between Burnley Football Club and Blackburn Rovers"
+    }
+  ],
+  "relationships": [
+    {
+      "from": {
+      "type": "PERSON",
+      "name": "John Smith"
+        },
+      "to": {
+      "type": "PLACE",
+      "name": "Burnley"
+        },
+      "relationship": "VISITED",
+      "reason": "John Smith been in Burnley for 5 days visting his sister"
+    },
+    {
+      "from": {
+      "type": "PERSON",
+      "name": "John Smith"
+        },
+      "to": {
+      "type": "ANIMAL",
+      "name": "Molly"
+        },
+      "relationship": "OWNER_OF",
+      "reason": "fed his hungry looking dog, Molly"
+    },
+    {
+      "from": {
+      "type": "PERSON",
+      "name": "John Smith"
+
+        },
+      "to": {
+      "type": "PERSON",
+      "name": "Fiona"    
+
+        },
+      "relationship": "HAS_SISTER",
+      "reason": "John Smith been in Burnley for 5 days visiting his sister, Fiona"
+    },
+    {
+      "from": {
+      "type": "PERSON",
+      "name": "Fiona"
+        },
+      "to": {
+      "type": "PLACE",
+      "name": "Burnley"
+        },
+      "relationship": "LIVES_IN",
+      "reason": "John Smith been in Burnley for 5 days visiting his sister, Fiona, implying that she lives in Burnley"
+    },  
+    {
+      "from": {
+      "type": "PERSON",
+      "name": "John Smith"
+        },
+      "to": {
+      "type": "PLACE",
+      "name": "Turf Moor"
+        },
+      "relationship": "VISITED",
+      "reason": "and headed down to Turf Moor"
+    },
+    {
+      "from": {
+      "type": "ORGANISATION",
+      "name": "Burnley Football Club"
+        },
+      "to": {
+      "type": "ORGANISATION",
+      "name": "Blackburn Rovers"
+        },
+      "relationship": "PLAYED",
+      "reason": "the derby between Burnley Football Club and Blackburn Rovers"
+    },
+    {
+      "from": {
+      "type": "PLACE",
+      "name": "Turf Moor"
+        },
+      "to": {
+      "type": "PLACE",
+      "name": "Burnley"
+        },
+      "relationship": "PART OF",
+      "reason": "in Burnley ... and headed down to Turf Moor"
+    }
+  ]
+}  
+
+
+The text the user supplies may contain OCR errors.  The text will always start and end with "###".

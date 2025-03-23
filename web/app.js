@@ -58,6 +58,7 @@ const appConfig = {
 	embeddingURL: process.env.EMBEDDING_URL,
 	summaryURL: process.env.SUMMARY_URL,
 	inferenceEngine: process.env.INFERENCE_ENGINE,
+	modelName: process.env.MODEL_NAME,
 	relativeUploadDir: process.env.RELATIVE_UPLOAD_DIR,
 	relativeTranscriptsDir: process.env.RELATIVE_TRANSCRIPTS_DIR,
 	audioInterviewCore: process.env.SOLR_AUDIO_INTERVIEW_CORE,

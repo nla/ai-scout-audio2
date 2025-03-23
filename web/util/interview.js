@@ -519,7 +519,21 @@ async function getSummary(chunk, bottomLevel, session, seq, targetSummaryLength,
 
    // console.log("\n=================Summary prompt: " + prompt) ;
 
-    let data = {
+    var data ;
+    switch (appConfig.inferenceEngine) {
+	case "openAI":
+        data = {
+          "model": appConfig.modelName,
+          "prompt": prompt,
+          "max_tokens": Math.ceil(targetSummaryLength * 2 * 1.2),
+          "stream":false,
+          "temperature": 0
+        }
+      break ;      
+
+      default:	 // vllm native
+
+     	data = {
           "prompt": prompt,
 // vllm 0.6.3          "use_beam_search": false,              
           "temperature":0.0,
@@ -528,7 +542,8 @@ async function getSummary(chunk, bottomLevel, session, seq, targetSummaryLength,
           "stream":false,
           skip_special_tokens: false,                         // skip and stop are attempts to stop startling model from seeming to loop
           stop: ["<|im_end|>"]                                  // open-hermes-neural-chat blend emits this
-    } ;
+    	} ;
+    } 
 
     let eRes = await axios.post(appConfig.summaryURL, 
       data,
@@ -538,11 +553,24 @@ async function getSummary(chunk, bottomLevel, session, seq, targetSummaryLength,
     //console.log("back from get sum") ;
     if (!eRes.status == 200) throw "Cant get summary, server returned http resp " + eRes.status ;
 
-   if (!eRes.data || !eRes.data.text) throw "Cant get summary, server returned no data" ;
 
-   // console.log("\n***===> eRes.data:\n" + JSON.stringify(eRes.data)) ;
+    var r ;
+    switch (appConfig.inferenceEngine) {
+        case "vllm":
+ 
+                if (!eRes.data || !eRes.data.text) throw "Cant get summary, server returned no data" ;
+                r = eRes.data.text[0] ;
+                break ;
+        case "openAI":
+                if (!eRes.data || !eRes.data.choices) throw "Cant get summary, server returned no data" ;
+                r = eRes.data.choices[0].text ;
+                let roi = r.indexOf("|<|im_end|>") ;
+                if (roi > 0) r = r.substring(0, roi) ;
+                break ;
+     }
 
-   let r = eRes.data.text[0] ;
+
+
    if (startResponseMarker) {
      let rs = r.indexOf(startResponseMarker) ;
      if (rs >= 0) r = r.substring(rs + startResponseMarker.length) ;
@@ -969,7 +997,22 @@ async function createInterviewSummaryFromSessionSummaries(iv) {
 
     // console.log("\n=================Summary prompt: " + prompt) ;
 
-    let data = {
+
+    var data ;
+    switch (appConfig.inferenceEngine) {
+        case "openAI":
+        data = {
+          "model": appConfig.modelName,
+          "prompt": prompt,
+          "max_tokens": Math.ceil(200 * 2 * 1.2),
+          "stream":false,
+          "temperature": 0
+        }
+      break ;
+
+      default:   // vllm native
+
+    	let data = {
           "prompt": prompt,
 // vllm 0.6.3         "use_beam_search": false,              
           "temperature":0.0,
@@ -978,7 +1021,8 @@ async function createInterviewSummaryFromSessionSummaries(iv) {
           "stream":false,
           skip_special_tokens: false,                         // skip and stop are attempts to stop startling model from seeming to loop
           stop: ["<|im_end|>"]                                  // open-hermes-neural-chat blend emits this
-    } ;
+    	} ;
+    }
 
     let eRes = await axios.post(appConfig.summaryURL, 
       data,
@@ -987,9 +1031,22 @@ async function createInterviewSummaryFromSessionSummaries(iv) {
     ) ;
     //console.log("back from get sum") ;
     if (!eRes.status == 200) throw "Cant get interview summary, server returned http resp " + eRes.status ;
+
+    var r ;
+    switch (appConfig.inferenceEngine) {
+	case "vllm":
   
-     if (!eRes.data || !eRes.data.text) throw "Cant get interview summary, server returned no data" ;
-     let r = eRes.data.text[0] ;
+     		if (!eRes.data || !eRes.data.text) throw "Cant get interview summary, server returned no data" ;
+     		r = eRes.data.text[0] ;
+		break ;
+	case "openAI":
+		if (!eRes.data || !eRes.data.choices) throw "Cant get interview summary, server returned no data" ;
+		r = eRes.data.choices[0].text ;
+		let roi = r.indexOf("|<|im_end|>") ;
+        	if (roi > 0) r = r.substring(0, roi) ;
+		break ;
+     }
+
      if (startResponseMarker) {
        let rs = r.indexOf(startResponseMarker) ;
        if (rs >= 0) r = r.substring(rs + startResponseMarker.length) ;

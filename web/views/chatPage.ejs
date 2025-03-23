@@ -32,11 +32,19 @@
     <td style="width:40em"><input type="range" id="temperature" name="temperature" min="0" max="1" step="0.01" value="<%=temperature%>"/></td>
     <td>Value: <span id='showTemperature'></span> <I style="font-size: 80%"> [0.0 - 1.0]</I></td></tr>
 <tr valign='top'><td>Max Tokens</td>
-    <td><input type="range" id="maxTokens" name="maxTokens" min="5" max="1000" value="<%=maxTokens%>"/></td>
-    <td>Value: <span id='showMaxTokens'></span> <I style="font-size: 80%"> [5 - 1000]</I></td></tr>
+    <td><input type="range" id="maxTokens" name="maxTokens" min="5" max="4000" value="<%=maxTokens%>"/></td>
+    <td>Value: <span id='showMaxTokens'></span> <I style="font-size: 80%"> [5 - 4000]</I></td></tr>
 <tr valign='top'><td>System Prompt</td><td><textarea id="systemPrompt" name="systemPrompt" rows="4" cols="80" style="width:50em"><%=systemPrompt%></textarea></td>
     <td><I style="font-size: 80%">Can only be changed at start of chat</I>
-	    <BR/>Eg: <span  style="font-size: 80%">Assistant is an intelligent agent that checks text that will be passed to a search system to ensure it is not offensive.  The user supplies the text, the agent replies OFFENSIVE if possibly offensive, or replies OK if unlikely to offend.</span></td></tr>
+	    <BR/>Eg: <span  style="font-size: 80%">Assistant is an intelligent agent that checks text that will be passed to a search system to ensure it is not offensive.  The user supplies the text, the agent replies OFFENSIVE if possibly offensive, or replies OK if unlikely to offend.</span>
+		<BR/>Eg: <span  style="font-size: 80%">
+	    Assistant is an intelligent chatbot that answers questions from user. You always construct your responses using careful reasoning, proceeding step by step and explaining your thought processes to the user, and double-checking them.</span>
+		<BR/>Eg: <span  style="font-size: 80%">
+		Assistant is an intelligent chatbot that always tries to be a comedian - the class clown.  They are sometimes helpful, but people chat to assistant when they need some humour in their day.</span>
+		<BR/>Eg: <span  style="font-size: 80%">
+			Assistant is an intelligent but extremely taciturn, even surly chatbot: a bot of very few words.
+			</span> <BR/> "Please summarise Moby Dick."
+		</td></tr>
 </TABLE>
 </div>
 

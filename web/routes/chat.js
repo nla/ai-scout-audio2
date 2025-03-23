@@ -23,7 +23,7 @@ async function showChatPage(req, res) {
   let systemPrompt = "Assistant is an intelligent chatbot that answers questions from user." ;
   let q = "" ;
   let temperature = 0 ;
-  let maxTokens = 300 ;
+  let maxTokens = 4000 ;
 
   if (req.query) {
     if (req.query.systemPrompt) systemPrompt = req.query.systemPrompt ;
@@ -62,16 +62,36 @@ async function chat(req, res) {
 
    // console.log("\n=================Summary prompt: " + prompt) ;
 
-    let data = {
+
+    var data ;
+    switch (appConfig.inferenceEngine) {
+        case "openAI":
+        data = {
+          "model": appConfig.modelName,
           "prompt": prompt,
- // vllm 0.6.3         "use_beam_search": false,              
+          "max_tokens": chatHistory.maxTokens,
+          "stream":false,
+          "temperature": chatHistory.temperature
+        }
+      break ;
+
+      default:   // vllm native
+
+        data = {
+         "prompt": prompt,
+ // vllm 0.6.3         "use_beam_search": false,
           "temperature": chatHistory.temperature,
           "n":1,
           "max_tokens": chatHistory.maxTokens,
           "stream":false,
           skip_special_tokens: false,                         // skip and stop are attempts to stop startling model from seeming to loop
           stop: ["<|im_end|>"]                                  // open-hermes-neural-chat blend emits this
-    } ;
+
+    	}
+    }
+
+
+
 
     let eRes = await axios.post(appConfig.summaryURL, 
       data,
@@ -81,10 +101,26 @@ async function chat(req, res) {
     //console.log("back from get sum") ;
     if (!eRes.status == 200) throw "Cant get summary, server returned http resp " + eRes.status ;
 
-   if (!eRes.data || !eRes.data.text) throw "Cant get summary, server returned no data" ;
+    var r ;
+    switch (appConfig.inferenceEngine) {
+        case "vllm":
+
+                if (!eRes.data || !eRes.data.text) throw "Cant get summary, server returned no data" ;
+                r = eRes.data.text[0] ;
+                break ;
+        case "openAI":
+                if (!eRes.data || !eRes.data.choices) throw "Cant get summary, server returned no data" ;
+                r = eRes.data.choices[0].text ;
+                let roi = r.indexOf("<|im_end") ;
+		
+		console.log("openAI resp1 roi " + roi + " r=" + r) ;
+                if (roi > 0) r = r.substring(0, roi) ;
+                break ;
+     }
+
+
    console.log("llm response: " + JSON.stringify(eRes.data)) ;
 
-   let r = eRes.data.text[0] ;
    if (startResponseMarker) {
      let rs = r.lastIndexOf(startResponseMarker) ;
      if (rs >= 0) r = r.substring(rs + startResponseMarker.length) ;
@@ -237,17 +273,34 @@ for (let doc of solrRes.data.response.docs) {
 
    // console.log("\n=================Summary prompt: " + prompt) ;
 
-    let data = {
+
+
+    var data ;
+    switch (appConfig.inferenceEngine) {
+        case "openAI":
+        data = {
+          "model": appConfig.modelName,
           "prompt": prompt,
-// vllm 0.6.3          "use_beam_search": false,              
+          "max_tokens": 300,
+          "stream":false,
+          "temperature": 0
+        }
+      break ;
+
+      default:   // vllm native
+
+        data = {
+	"prompt": prompt,
+		// vllm 0.6.3          "use_beam_search": false,
           "temperature": 0,
           "n":1,
           "max_tokens": 300,
           "stream":false,
           skip_special_tokens: false,                         // skip and stop are attempts to stop startling model from seeming to loop
           stop: ["<|im_end|>"]                                  // open-hermes-neural-chat blend emits this
-    } ;
 
+    	}
+    }
     let eRes = await axios.post(appConfig.summaryURL, 
       data,
       { headers: {'Content-Type': 'application/json'}
@@ -256,10 +309,27 @@ for (let doc of solrRes.data.response.docs) {
     //console.log("back from get sum") ;
     if (!eRes.status == 200) throw "Cant get summary, server returned http resp " + eRes.status ;
 
-   if (!eRes.data || !eRes.data.text) throw "Cant get summary, server returned no data" ;
    console.log("llm response: " + JSON.stringify(eRes.data)) ;
 
-   let r = eRes.data.text[0] ;
+
+    var r ;
+    switch (appConfig.inferenceEngine) {
+        case "vllm":
+
+                if (!eRes.data || !eRes.data.text) throw "Cant get summary, server returned no data" ;
+                r = eRes.data.text[0] ;
+                break ;
+        case "openAI":
+                if (!eRes.data || !eRes.data.choices) throw "Cant get summary, server returned no data" ;
+                r = eRes.data.choices[0].text ;
+                let roi = r.indexOf("<|im_end") ;
+		console.log("openAI resp2 roi " + roi + " r=" + r) ;
+                if (roi > 0) r = r.substring(0, roi) ;
+                break ;
+     }
+
+
+
    if (startResponseMarker) {
      let rs = r.lastIndexOf(startResponseMarker) ;
      if (rs >= 0) r = r.substring(rs + startResponseMarker.length) ;
