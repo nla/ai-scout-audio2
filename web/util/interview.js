@@ -545,6 +545,8 @@ async function getSummary(chunk, bottomLevel, session, seq, targetSummaryLength,
     	} ;
     } 
 
+
+  //  console.log("===GETSUMMARY data: " + JSON.stringify(data)) ;
     let eRes = await axios.post(appConfig.summaryURL, 
       data,
       { headers: {'Content-Type': 'application/json'}
@@ -564,6 +566,7 @@ async function getSummary(chunk, bottomLevel, session, seq, targetSummaryLength,
         case "openAI":
                 if (!eRes.data || !eRes.data.choices) throw "Cant get summary, server returned no data" ;
                 r = eRes.data.choices[0].text ;
+               // console.log("===GETSUMMARY response choices[0].text: " + r) ;
                 let roi = r.indexOf("|<|im_end|>") ;
                 if (roi > 0) r = r.substring(0, roi) ;
                 break ;
@@ -1012,7 +1015,7 @@ async function createInterviewSummaryFromSessionSummaries(iv) {
 
       default:   // vllm native
 
-    	let data = {
+    	data = {
           "prompt": prompt,
 // vllm 0.6.3         "use_beam_search": false,              
           "temperature":0.0,
@@ -1282,12 +1285,23 @@ async function matchSummaryAndDetailSentences(sentences, matchingSessionPrefix, 
 
 module.exports = {
 
+
+
+
 	init: async function(appConfigParm) {
 
 		appConfig = appConfigParm ;
     console.log("util/doc initialised ") ;   
     log.info("util/doc initialised ") ;     
 	},
+
+  runCreateInterviewSummaryFromSessionSummaries: async function(sessionId) {
+
+    console.log("in runCreateInterviewSummaryFromSessionSummaries sessionId=" + sessionId) ;
+    let iv = await this.getInterview(sessionId)
+    await createInterviewSummaryFromSessionSummaries(iv) ;
+    
+  },
 
   resetinterviewCache: async function (replacementInterviews) {  // just replaces the doc cache
 

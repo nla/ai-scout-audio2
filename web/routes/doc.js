@@ -22,7 +22,20 @@ function init(appConfigParm) {
   router.get ('/testSummaryGeneration',  async (req, res) => { testSummaryGeneration(req, res) }) ;
   router.get ('/listTestSummaryGenerations',  async (req, res) => { listTestSummaryGenerations(req, res) }) ;
   router.get ('/runTestSummaryGeneration',  async (req, res) => { runTestSummaryGeneration(req, res) }) ;
+  router.get ('/runTestCreateInterviewSummaryFromSessionSummaries',  async (req, res) => { runTestCreateInterviewSummaryFromSessionSummaries(req, res) }) ;
   return router ;  
+}
+
+async function runTestCreateInterviewSummaryFromSessionSummaries(req, res) {
+
+  if (!req.query.sessionId) {
+    res.json({ok: false, error:"no sessiondId"}) ; // nla.obj-1169351390
+    return ;
+  }
+
+  console.log("MANUAL runTestCreateInterviewSummaryFromSessionSummaries for " + req.query.sessionId) ;
+  await interviewUtil.runCreateInterviewSummaryFromSessionSummaries(req.query.sessionId) ;
+  res.json({ok: true, error:"done!  sessiondId = " + req.query.sessionId}) ;
 }
 
 async function testSummaryGeneration(req, res) {

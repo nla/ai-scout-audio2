@@ -1407,8 +1407,13 @@ async function readTEIFileForJSON(fn) {
                // console.log("seg: " + JSON.stringify(seg)) ;
 
                 let textSeg = seg.seg ;
-                let txt = (typeof textSeg === 'string') ? textSeg : textSeg["#text"] ;
-
+                let txt = "" ;
+                if (typeof textSeg === 'string') txt = textSeg ;
+                else if (typeof textSeg === 'number') txt = "" + textSeg ;
+                else if (typeof textSeg === 'boolean') txt = "" + textSeg ;
+                else txt = textSeg["#text"] ;
+               //3apr25 - new format?   let txt = (typeof textSeg === 'string') ? textSeg : textSeg["#text"] ;
+console.log("txt="+txt) ;
                 if (txt.trim().indexOf(' ') < 0) { // just one word - normal for whisper!
                   let cc = {
                     s: from,
